@@ -42,6 +42,14 @@ SUBDIRS = \
  url_sig \
  xdebug
 
+if HAS_HIREDIS
+  SUBDIRS += redis_remap
+endif
+
+if HAS_MEMCACHED
+  SUBDIRS += memcached_remap
+endif
+
 if HAS_MYSQL
   SUBDIRS += mysql_remap
 endif
