@@ -14,41 +14,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-SUBDIRS = \
- authproxy \
- background_fetch \
- balancer \
- buffer_upload \
- cache_range_requests \
- cache_promote \
- collapsed_connection \
- custom_redirect \
- epic \
- escalate \
- esi \
- generator \
- geoip_acl \
- header_normalize \
- hipes \
- metalink \
- multiplexer \
- memcached_remap \
- redis_remap \
- regex_revalidate \
- remap_stats \
- s3_auth \
- ssl_cert_loader \
- sslheaders \
- stale_while_revalidate \
- url_sig \
- xdebug \
- mp4 \
- stream_editor
+include $(top_srcdir)/build/plugins.mk
 
-if HAS_MYSQL
-  SUBDIRS += mysql_remap
-endif
+pkglib_LTLIBRARIES = redis_remap.la
 
-if BUILD_LUAJIT
-  SUBDIRS += ts_lua
-endif
+AM_CPPFLAGS += \
+  -I$(srcdir)/lib
+
+redis_remap_la_SOURCES = redis_remap.cc
+redis_remap_la_LDFLAGS = $(TS_PLUGIN_LDFLAGS) -lhiredis 
+#redis_remap_la_LDFLAGS = $(TS_PLUGIN_LDFLAGS) -no-undefined
+

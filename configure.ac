@@ -1883,6 +1883,10 @@ AC_CONFIG_FILES([
   tools/tsxs
 ])
 
+AC_CHECK_HEADERS([hiredis/hiredis.h], [has_hiredis=1],[has_hiredis=0])
+AC_SUBST(has_hiredis)
+AM_CONDITIONAL([HAS_HIREDIS], [ test "x${has_hiredis}" = "x1" ])
+
 AC_CHECK_HEADERS([mysql/mysql.h], [has_mysql=1],[has_mysql=0])
 AC_CHECK_LIB([mysqlclient],[mysql_info],[AC_SUBST([LIB_MYSQLCLIENT],["-lmysqlclient"])],[has_mysql=0])
 AC_SUBST(has_mysql)
@@ -1911,6 +1915,7 @@ AS_IF([test "x$enable_experimental_plugins" = "xyes"], [
     plugins/experimental/metalink/Makefile
     plugins/experimental/multiplexer/Makefile
     plugins/experimental/mysql_remap/Makefile
+    plugins/experimental/redis_remap/Makefile
     plugins/experimental/regex_revalidate/Makefile
     plugins/experimental/remap_stats/Makefile
     plugins/experimental/s3_auth/Makefile
