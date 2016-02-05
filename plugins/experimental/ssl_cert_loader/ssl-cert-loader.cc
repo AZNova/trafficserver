@@ -31,10 +31,12 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <getopt.h>
+#include <hiredis/hiredis.h>
 #include "domain-tree.h"
 
 #include "ts/ink_inet.h"
 #include "ts/ink_config.h"
+#include "ts/ink_time.h"
 #include "ts/IpMap.h"
 
 using ts::config::Configuration;
@@ -69,6 +71,22 @@ public:
   std::string keyFileName;
   TSMutex mutex;
   std::deque<TSVConn> waitingVConns;
+  ink_time_t load_time;
+  ink_time_t access_time;
+  // Common Name fetched from redis
+  std::string redis_CN;
+
+  void
+  set_load_time(ink_time_t this_time)
+  {
+    load_time = this_time;
+  }
+
+  void
+  set_access_time(ink_time_t this_time)
+  {
+    access_time = this_time;
+  }
 };
 
 std::string ConfigPath;
@@ -76,6 +94,30 @@ typedef std::pair<IpAddr, IpAddr> IpRange;
 typedef std::deque<IpRange> IpRangeQueue;
 
 Configuration Config; // global configuration
+
+// redis related global variables
+redisContext *r_ctx;
+
+bool
+parse_redis_string(redisReply *redis_reply, char *scheme, char *host, int *port)
+{
+  bool ret_val = false;
+
+  TSDebug(PN, "redis replied with [%s] and length [%d]\n", redis_reply->str, redis_reply->len);
+  TSDebug(PN, "got the response from server : %s\n", redis_reply->str);
+  TSDebug(PN, "scanf result : %d\n", sscanf(redis_reply->str, "%[a-zA-Z]://%[^:]:%d", scheme, host, port));
+  TSDebug(PN, "scanf results: scheme [%s]\n", scheme);
+  TSDebug(PN, "scanf results: host [%s]\n", host);
+  TSDebug(PN, "scanf results: port [%d]\n", *port);
+  if (sscanf(redis_reply->str, "%[a-zA-Z]://%[^:]:%d", scheme, host, port) >= 2) {
+    TSDebug(PN, "\nOUTGOING REQUEST ->\n ::: to_scheme_desc: %s\n ::: to_hostname: %s\n ::: to_port: %d", scheme, host,
+            *port);
+    ret_val = true;
+  } else {
+    ret_val = false;
+  }
+  return ret_val;
+}
 
 void
 Parse_Addr_String(ts::ConstBuffer const &text, IpRange &range)
@@ -156,8 +198,12 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
   SSL_CTX *retval = SSL_CTX_new(SSLv23_client_method());
   X509 *cert = NULL;
 
-  if (entry->certFileName.length() > 0) {
+  if (entry->redis_CN.length() > 0){
+    TSDebug(PN, "Loading cert for [%s]", entry->redis_CN.c_str());
+  }
+  else if (entry->certFileName.length() > 0) {
     // Must load the cert file to fetch the names out later
+    TSDebug(PN, "Loading cert from file [%s]", entry->certFileName.c_str());
     BIO *cert_bio = BIO_new_file(entry->certFileName.c_str(), "r");
     cert = PEM_read_bio_X509_AUX(cert_bio, NULL, NULL, NULL);
     BIO_free(cert_bio);
@@ -169,6 +215,7 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
     }
   }
   if (entry->keyFileName.length() > 0) {
+    TSDebug(PN, "Loading key file from file [%s]", entry->keyFileName.c_str());
     if (!SSL_CTX_use_PrivateKey_file(retval, entry->keyFileName.c_str(), SSL_FILETYPE_PEM)) {
       TSDebug(PN, "Failed to load priv key file %s", entry->keyFileName.c_str());
       SSL_CTX_free(retval);
@@ -178,10 +225,12 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
 
   // Fetch out the names associated with the certificate
   if (cert != NULL) {
+    TSDebug(PN, "OK, we have the cert loaded, let's pull out the names");
     X509_NAME *name = X509_get_subject_name(cert);
     char subjectCn[256];
 
     if (X509_NAME_get_text_by_NID(name, NID_commonName, subjectCn, sizeof(subjectCn)) >= 0) {
+      TSDebug(PN, "Found [%s] as the Common Name", subjectCn);
       std::string tmp_name(subjectCn);
       names.push_back(tmp_name);
     }
@@ -196,11 +245,19 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
           // Current name is a DNS name, let's check it
           char *name_ptr = (char *)ASN1_STRING_data(alt_name->d.dNSName);
           std::string tmp_name(name_ptr);
+          TSDebug(PN, "Found [%s] as an Subject Alt Name", tmp_name.c_str());
           names.push_back(tmp_name);
         }
       }
       sk_GENERAL_NAME_pop_free(alt_names, GENERAL_NAME_free);
     }
+
+    // struct tm cur_time;
+    // ink_time_t now = time(0);
+    // ink_localtime_r(&now, &cur_time);
+    // entry->set_load_time(time(0));
+    // entry->set_access_time(time(0));
+
   }
 
   // Do we need to free cert? Did assigning to SSL_CTX increment its ref count
@@ -243,10 +300,14 @@ Load_Certificate_Entry(ParsedSslValues const &values, std::deque<std::string> &n
   if (values.action.length() > 0) {
     if (values.action == "tunnel") {
       retval->op = TS_SSL_HOOK_OP_TUNNEL;
-    } else if (values.action == "teriminate") {
+    } else if (values.action == "terminate") {
       retval->op = TS_SSL_HOOK_OP_TERMINATE;
     }
+    else {
+      retval->op = TS_SSL_HOOK_OP_DEFAULT;
+    }
   }
+  retval->set_access_time(0);
 
   return retval;
 }
@@ -286,9 +347,9 @@ Parse_Config(Value &parent, ParsedSslValues &orig_values)
   if (val) {
     Parse_Config_Rules(val, cur_values);
   } else { // We are terminal, enter a match case
-    TSDebug(PN, "Terminal SSL Config: server_priv_key_file=%s server_name=%s server_cert_name=%s action=%s",
-            cur_values.server_priv_key_file.c_str(), cur_values.server_name.c_str(), cur_values.server_cert_name.c_str(),
-            cur_values.action.c_str());
+//    TSDebug(PN, "Terminal SSL Config: server_priv_key_file=%s server_name=%s server_cert_name=%s action=%s",
+//            cur_values.server_priv_key_file.c_str(), cur_values.server_name.c_str(), cur_values.server_cert_name.c_str(),
+//            cur_values.action.c_str());
     // Load the certificate and create a context if appropriate
     std::deque<std::string> cert_names;
     SslEntry *entry = Load_Certificate_Entry(cur_values, cert_names);
@@ -330,6 +391,7 @@ Load_Certificate_Thread(void *arg)
 {
   SslEntry *entry = reinterpret_cast<SslEntry *>(arg);
 
+  TSDebug(PN, "Loading the cert from inside the Load_Certificate_Thread");
   TSMutexLock(entry->mutex);
   if (entry->ctx == NULL) {
     // Must load certificate
@@ -346,9 +408,11 @@ Load_Certificate_Thread(void *arg)
     }
     TSMutexUnlock(entry->mutex);
     for (size_t i = 0; i < cert_names.size(); i++) {
+      TSDebug(PN, "Inserting %s into the lookup tree", cert_names[i].c_str());
       Lookup.tree.insert(cert_names[i], entry, Parse_order++);
     }
   } else {
+    TSDebug(PN, "Didn't need to load the cert from inside the Load_Certificate_Thread, entry->ctx was already set");
     TSMutexUnlock(entry->mutex);
   }
 
@@ -360,7 +424,9 @@ CB_Life_Cycle(TSCont, TSEvent, void *)
 {
   // By now the SSL library should have been initialized,
   // We can safely parse the config file and load the ctx tables
+  TSDebug(PN, "Starting Load_Configuration");
   Load_Configuration();
+  TSDebug(PN, "Load_Configuration Complete");
 
   return TS_SUCCESS;
 }
@@ -384,31 +450,40 @@ CB_Pre_Accept(TSCont /*contp*/, TSEvent event, void *edata)
   key_endpoint.assign(ip);
   void *payload;
   if (Lookup.ipmap.contains(&key_endpoint, &payload)) {
+    TSDebug(PN, "Setting the stored cert in this SSL object");
     // Set the stored cert on this SSL object
     TSSslConnection sslobj = TSVConnSSLConnectionGet(ssl_vc);
     SSL *ssl = reinterpret_cast<SSL *>(sslobj);
     SslEntry *entry = reinterpret_cast<SslEntry *>(payload);
     TSMutexLock(entry->mutex);
+    entry->set_access_time(time(0));
     if (entry->op == TS_SSL_HOOK_OP_TUNNEL || entry->op == TS_SSL_HOOK_OP_TERMINATE) {
+      TSDebug(PN, "Push everything to blind tunnel, or terminate");
       // Push everything to blind tunnel, or terminate
       if (entry->op == TS_SSL_HOOK_OP_TUNNEL) {
         TSVConnTunnel(ssl_vc);
       }
       TSMutexUnlock(entry->mutex);
     } else {
+      TSDebug(PN, "This is a default, normal processing SSL op");
       if (entry->ctx == NULL) {
+        // if there are no pending VConns waiting on a cert load, spawn a
+        // thread
         if (entry->waitingVConns.begin() == entry->waitingVConns.end()) {
+          TSDebug(PN, "We don't have a ctx yet");
           entry->waitingVConns.push_back(ssl_vc);
           TSMutexUnlock(entry->mutex);
 
           TSThreadCreate(Load_Certificate_Thread, entry);
-        } else { // Just add yourself to the queue
+        } else { // otherwise, just add yourself to the queue
+          TSDebug(PN, "Adding ourselves to the queue for processing");
           entry->waitingVConns.push_back(ssl_vc);
           TSMutexUnlock(entry->mutex);
         }
         // Return before we reenable
         return TS_SUCCESS;
       } else { // if (entry->ctx != NULL) {
+        TSDebug(PN, "We have a ctx!");
         SSL_set_SSL_CTX(ssl, entry->ctx);
         TSDebug(PN, "Replace cert based on IP");
         TSMutexUnlock(entry->mutex);
@@ -432,11 +507,16 @@ CB_servername(TSCont /*contp*/, TSEvent /*event*/, void *edata)
 
   TSDebug(PN, "SNI callback %s", servername);
   if (servername != NULL) {
-    // Is there a certificated loaded up for this name
+    // Is there a certificate loaded up for this name
     DomainNameTree::DomainNameNode *node = Lookup.tree.findFirstMatch(servername);
     if (node != NULL && node->payload != NULL) {
+      TSDebug(PN, "We found node data in the lookup tree");
       SslEntry *entry = reinterpret_cast<SslEntry *>(node->payload);
+      char t_buf[256];
+      ink_ctime_r(&entry->access_time, t_buf);
+      TSDebug(PN, "This cert was last accessed: %s", t_buf);
       if (entry->op == TS_SSL_HOOK_OP_TUNNEL || entry->op == TS_SSL_HOOK_OP_TERMINATE) {
+        TSDebug(PN, "Push everything to blind tunnel, or terminate");
         // Push everything to blind tunnel
         if (entry->op == TS_SSL_HOOK_OP_TUNNEL) {
           TSVConnTunnel(ssl_vc);
@@ -445,14 +525,17 @@ CB_servername(TSCont /*contp*/, TSEvent /*event*/, void *edata)
         // So return before re-enabling the SSL connection
         return TS_SUCCESS;
       }
+      TSDebug(PN, "This is a default, normal processing SSL op");
       TSMutexLock(entry->mutex);
       if (entry->ctx == NULL) {
         // Spawn off a thread to load a potentially expensive certificate
+        TSDebug(PN, "Don't have the cert loaded yet. Spawning off a thread to load the certificate");
         if (entry->waitingVConns.begin() == entry->waitingVConns.end()) {
           entry->waitingVConns.push_back(ssl_vc);
           TSMutexUnlock(entry->mutex);
           TSThreadCreate(Load_Certificate_Thread, entry);
         } else { // Just add yourself to the queue
+          TSDebug(PN, "Adding ourselves to the queue for processing");
           entry->waitingVConns.push_back(ssl_vc);
           TSMutexUnlock(entry->mutex);
         }
