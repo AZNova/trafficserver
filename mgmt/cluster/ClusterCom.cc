@@ -729,6 +729,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   //   Loopback disable is currently not working on NT.
   //   We will ignore our own multicast messages.
   if (inet_addr(ip) == our_ip) {
+    Debug("ccom", "handleMultiCastMessage: our_ip");
     return;
   }
 
@@ -742,6 +743,7 @@ ClusterCom::handleMultiCastMessage(char *message)
 
   if (strcmp(cluster_name, lmgmt->proxy_name) != 0) {
     logClusterMismatch(ip, TS_NAME_MISMATCH, cluster_name);
+    Debug("ccom", "handleMultiCastMessage: TS_NAME_MISMATCH");
     return;
   }
 
@@ -752,12 +754,14 @@ ClusterCom::handleMultiCastMessage(char *message)
   // coverity[secure_coding]
   if (strlen(line) >= sizeof(tsver) || sscanf(line, "tsver: %s", tsver) != 1 || strcmp(line + 7, appVersionInfo.VersionStr) != 0) {
     logClusterMismatch(ip, TS_VER_MISMATCH, tsver);
+    Debug("ccom", "handleMultiCastMessage: TS_VER_MISMATCH");
     return;
   }
 
   /* Figure out what type of message this is */
   if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;
+  Debug("ccom", "MultiCast Message received from : %s [%s]", ip, line);
   if (strcmp("type: files", line) == 0) { /* Config Files report */
     handleMultiCastFilePacket(last, ip);
     return;
@@ -833,8 +837,10 @@ ClusterCom::handleMultiCastMessage(char *message)
   peer_wall_clock = (time_t)tt;
 
   /* Have we see this guy before? */
+  Debug("ccom", "Have we seen this guy before [%s]?", ip);
   ink_mutex_acquire(&(mutex)); /* Grab cluster lock to access hash table */
   if (ink_hash_table_lookup(peers, (InkHashTableKey)ip, &hash_value) == 0) {
+    Debug("ccom", "Nope, let's create a ClusterPeerInfo entry for [%s]?", ip);
     p = (ClusterPeerInfo *)ats_malloc(sizeof(ClusterPeerInfo));
     p->inet_address = inet_addr(ip);
     p->num_virt_addrs = 0;
@@ -870,6 +876,7 @@ ClusterCom::handleMultiCastMessage(char *message)
 
     Note("adding node %s to the cluster", ip);
   } else {
+    Debug("ccom", "Yes, let's light him up [%s]!", ip);
     p = (ClusterPeerInfo *)hash_value;
     if (p->manager_alive < 0) {
       Note("marking manager on node %s as up", ip);
@@ -1348,6 +1355,7 @@ ClusterCom::sendSharedData(bool send_proxy_heart_beat)
   /* Config Files Message */
   memset(message, 0, 61440);
   constructSharedFilePacket(message, 61440);
+  Debug("ccom", "Sending a Shared File Packet");
   sendOutgoingMessage(message, strlen(message));
 
   /* Alarm Message */
@@ -1355,6 +1363,7 @@ ClusterCom::sendSharedData(bool send_proxy_heart_beat)
   resolved_addr.s_addr = our_ip;
   ink_strlcpy(addr, inet_ntoa(resolved_addr), sizeof(addr));
   lmgmt->alarm_keeper->constructAlarmMessage(appVersionInfo, addr, message, 61440);
+  Debug("ccom", "Sending an Alarm Message");
   sendOutgoingMessage(message, strlen(message));
 
   /*
@@ -1372,11 +1381,13 @@ ClusterCom::sendSharedData(bool send_proxy_heart_beat)
   /* Stat Message */
   memset(message, 0, 61440);
   constructSharedStatPacket(message, 61440);
+  Debug("ccom", "Sending a Shared Stat Packet");
   sendOutgoingMessage(message, strlen(message));
 
   /* VMap Message */
   memset(message, 0, 61440);
   lmgmt->virt_map->lt_constructVMapMessage(addr, message, 61440);
+  Debug("ccom", "Sending a VMap Message");
   sendOutgoingMessage(message, strlen(message));
 
   return true;
@@ -1452,6 +1463,10 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
   }
   ink_release_assert(running_sum < max);
 
+//  Is this the source of all my grief of why the stat msgs are not being
+//  recv'd?  Possibly there are now too many records.config directives causing
+//  the UDP records to be too large?
+#if 1
   int cnt = 0;
   for (int j = 0; j < g_num_records; j++) {
     RecRecord *rec = &(g_records[j]);
@@ -1486,9 +1501,12 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
         break;
       }
       ++cnt;
+      if (cnt >50)
+        break;  // this is just temporary... I wanna see if I can get 100 of these through to the other nodes
     }
     ink_release_assert(running_sum < max);
   }
+#endif
 
   return;
 } /* End ClusterCom::constructSharedGenericPacket */

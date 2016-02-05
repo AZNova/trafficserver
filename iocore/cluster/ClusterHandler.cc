@@ -2385,6 +2385,7 @@ ClusterHandler::mainClusterEvent(int event, Event *e)
     only_write_control_msgs = 0;
 
     if (downing) {
+      Note("Cluster [%u.%u.%u.%u:%d] has downing variable set, declaring down", DOT_SEPARATED(ip), port);
       machine_down();
       break;
     }
@@ -2492,6 +2493,7 @@ int ClusterHandler::process_read(ink_hrtime /* now ATS_UNUSED */)
         } else {
           if (read.io_complete < 0) {
             // read error, declare node down
+            Note("Cluster [%u.%u.%u.%u:%d] read error, declaring down", DOT_SEPARATED(ip), port);
             machine_down();
             return -1;
           }
@@ -2581,6 +2583,7 @@ int ClusterHandler::process_read(ink_hrtime /* now ATS_UNUSED */)
         } else {
           if (read.io_complete < 0) {
             // read error, declare node down
+            Note("Cluster read error from [%u.%u.%u.%u] during READ_AWAIT_DESCRIPTOR, declaring down", DOT_SEPARATED(ip));
             machine_down();
             return -1;
           }
@@ -2665,6 +2668,7 @@ int ClusterHandler::process_read(ink_hrtime /* now ATS_UNUSED */)
             read.state = ClusterState::READ_POST_COMPLETE;
           } else {
             // read error, declare node down
+            Note("Cluster read error from [%u.%u.%u.%u] during READ_AWAIT_DATA, declaring down", DOT_SEPARATED(ip));
             machine_down();
             return -1;
           }
@@ -2849,6 +2853,7 @@ ClusterHandler::process_write(ink_hrtime now, bool only_write_control_msgs)
         } else {
           if (write.io_complete < 0) {
             // write error, declare node down
+            Note("Cluster write from [%u.%u.%u.%u] failed, declaring down", DOT_SEPARATED(ip));
             machine_down();
             write.state = ClusterState::WRITE_INITIATE;
             break;
