@@ -464,6 +464,8 @@ CCCongestionDBTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_U
   int to_add = 1 * 1024 * 1024;
   int i;
   int items[10] = {0};
+  final_status = REGRESSION_TEST_PASSED;
+
   init();
   rprintf(test, "Add %d records into the db", dbsize);
 
@@ -479,12 +481,13 @@ CCCongestionDBTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_U
     db->addRecord(tmp->m_key, tmp);
   }
   fprintf(stderr, "done\n");
-
   items[0] = get_congest_list();
-
-  db->removeAllRecords();
-
   rprintf(test, "There are %d records in the db\n", items[0]);
+  if (items[0] != dbsize) {
+    rprintf(test, "Number of records in the db after insertion did not match expected %d versus %d\n", items[0], dbsize);
+    final_status = REGRESSION_TEST_FAILED;
+  }
+  db->removeAllRecords();
 
   rprintf(test, "Add %d records into the db", to_add);
   for (i = 0; i < to_add; i++) {
@@ -497,15 +500,11 @@ CCCongestionDBTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_U
     CongestionEntry *tmp = gen_CongestionEntry(&ip.sa);
     db->addRecord(tmp->m_key, tmp);
   }
-
   items[1] = get_congest_list();
-
+  rprintf(test, "There are %d records in the db\n", items[1]);
   db->removeAllRecords();
 
-  rprintf(test, "There are %d records in the db\n", items[1]);
-
   rprintf(test, "Add %d congested records into the db", to_add);
-
   for (i = 0; i < to_add; i++) {
     if (i % (to_add / 25) == 0) {
       fprintf(stderr, ".");
@@ -519,15 +518,14 @@ CCCongestionDBTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_U
   }
   items[2] = get_congest_list();
   rprintf(test, "There are %d records in the db\n", items[2]);
-
+  if (items[0] != to_add) {
+    rprintf(test, "Number of records in the db after inserting all congested records did not match expected %d versus %d\n", items[2], to_add);
+    final_status = REGRESSION_TEST_FAILED;
+  }
   db->removeAllRecords();
 
-  final_status = REGRESSION_TEST_PASSED;
   for (i = 0; i < 3; i++) {
     rprintf(test, "After test [%d] there are %d records in the db\n", i + 1, items[i]);
-    //if (items[i] != to_add) {
-    //  final_status = REGRESSION_TEST_FAILED;
-    //}
   }
 
   complete = true;
