@@ -6320,7 +6320,7 @@ HttpTransact::is_request_retryable(State *s)
   // If safe requests are  retryable, it should be safe to retry safe requests irrespective of bytes sent or connection state
   // according to RFC the following methods are safe (https://tools.ietf.org/html/rfc7231#section-4.2.1)
   // If there was no error establishing the connection (and we sent bytes)-- we cannot retry
-  if (!(s->txn_conf->safe_requests_retryable && HttpTransactHeaders::is_method_safe(s->method)) &&
+  if (!HttpTransactHeaders::is_method_safe(s->method) &&
       (s->current.state != CONNECTION_ERROR && s->state_machine->server_request_hdr_bytes > 0 &&
        s->state_machine->get_server_session()->get_netvc()->outstanding() != s->state_machine->server_request_hdr_bytes)) {
     return false;
@@ -6729,7 +6729,6 @@ HttpTransact::handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPH
       // Note: if we are 1.1, we always need to send the close
       //  header since persistant connnections are the default
       break;
-    case KA_UNKNOWN:
     default:
       ink_assert(0);
       break;
@@ -6868,6 +6867,8 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
     }
   }
 
+  ink_assert(ka_action != KA_UNKNOWN);
+
   // Insert K-A headers as necessary
   switch (ka_action) {
   case KA_CONNECTION:
@@ -6888,7 +6889,6 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
     // Note: if we are 1.1, we always need to send the close
     //  header since persistant connnections are the default
     break;
-  case KA_UNKNOWN:
   default:
     ink_assert(0);
     break;
