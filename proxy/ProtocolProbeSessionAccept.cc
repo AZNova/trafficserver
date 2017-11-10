@@ -25,6 +25,7 @@
 #include "I_Machine.h"
 #include "ProtocolProbeSessionAccept.h"
 #include "http2/HTTP2.h"
+#include "ProxyProtocol.h"
 
 static bool
 proto_is_http2(IOBufferReader *reader)
@@ -43,6 +44,25 @@ proto_is_http2(IOBufferReader *reader)
 
   ink_assert(nbytes <= (int64_t)HTTP2_CONNECTION_PREFACE_LEN);
   return memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) == 0;
+}
+
+static bool
+proto_is_proxy(IOBufferReader *reader)
+{
+  char buf[PROXY_V2_CONNECTION_PREFACE_LEN];
+  char *end;
+  ptrdiff_t nbytes;
+
+  end    = reader->memcpy(buf, sizeof(buf), 0 /* offset */);
+  nbytes = end - buf;
+
+  // Client must send at least 4 bytes to get a reasonable match.
+  if (nbytes < MIN_V2_HDR_LEN) {
+    return false;
+  }
+
+  ink_assert(nbytes <= (int64_t)PROXY_V2_CONNECTION_PREFACE_LEN);
+  return memcmp(PROXY_V2_CONNECTION_PREFACE, buf, nbytes) == 0;
 }
 
 struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessionAcceptEnums {
@@ -91,6 +111,8 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
     }
 
     if (proto_is_http2(reader)) {
+      key = PROTO_HTTP2;
+    } else if (proto_is_proxy(reader)) {
       key = PROTO_HTTP2;
     } else {
       key = PROTO_HTTP;

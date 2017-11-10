@@ -135,6 +135,7 @@ public:
 // Predefined sets of protocols, useful for configuration.
 extern SessionProtocolSet HTTP_PROTOCOL_SET;
 extern SessionProtocolSet HTTP2_PROTOCOL_SET;
+extern SessionProtocolSet PROTOCOL_PROTOCOL_SET;
 extern SessionProtocolSet DEFAULT_NON_TLS_SESSION_PROTOCOL_SET;
 extern SessionProtocolSet DEFAULT_TLS_SESSION_PROTOCOL_SET;
 
@@ -233,7 +234,8 @@ public:
     TRANSPORT_COMPRESSED,   ///< Compressed HTTP.
     TRANSPORT_BLIND_TUNNEL, ///< Blind tunnel (no processing).
     TRANSPORT_SSL,          ///< SSL connection.
-    TRANSPORT_PLUGIN        /// < Protocol plugin connection
+    TRANSPORT_PROXY,        ///< Proxy Protocol.
+    TRANSPORT_PLUGIN        ///< Protocol plugin connection
   };
 
   int m_fd;             ///< Pre-opened file descriptor if present.
@@ -273,6 +275,9 @@ public:
 
   /// Check for SSL port.
   bool isSSL() const;
+
+  /// Check for Proxy Protocol port.
+  bool isProxy() const;
 
   /// Check for SSL port.
   bool isPlugin() const;
@@ -391,6 +396,7 @@ public:
   static const char *const OPT_TRANSPARENT_FULL;        ///< Full transparency.
   static const char *const OPT_TRANSPARENT_PASSTHROUGH; ///< Pass-through non-HTTP.
   static const char *const OPT_SSL;                     ///< SSL (experimental)
+  static const char *const OPT_PROXY;                   ///< Proxy Protocol (experimental)
   static const char *const OPT_PLUGIN;                  ///< Protocol Plugin handle (experimental)
   static const char *const OPT_BLIND_TUNNEL;            ///< Blind tunnel.
   static const char *const OPT_COMPRESSED;              ///< Compressed.
@@ -421,6 +427,11 @@ inline bool
 HttpProxyPort::isSSL() const
 {
   return TRANSPORT_SSL == m_type;
+}
+inline bool
+HttpProxyPort::isProxy() const
+{
+  return TRANSPORT_PROXY == m_type;
 }
 inline bool
 HttpProxyPort::isPlugin() const

@@ -36,6 +36,7 @@
 #include "HttpTunnel.h"
 #include "ts/Tokenizer.h"
 #include "P_SSLNextProtocolAccept.h"
+#include "proxyprotocol/ProxyProtocol.h"
 #include "ProtocolProbeSessionAccept.h"
 #include "http2/Http2SessionAccept.h"
 #include "HttpConnectionCount.h"
@@ -190,6 +191,10 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
     probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_HTTP2, new Http2SessionAccept(accept_opt));
   }
 
+  if (port.m_session_protocol_preference.intersects(PROXY_PROTOCOL_SET)) {
+    probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_PROXY, new Http2SessionAccept(accept_opt));
+  }
+
   if (port.isSSL()) {
     SSLNextProtocolAccept *ssl = new SSLNextProtocolAccept(probe, port.m_transparent_passthrough);
 
@@ -214,6 +219,12 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
       Http2SessionAccept *acc = new Http2SessionAccept(accept_opt);
 
       ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_2_0, acc);
+    }
+
+    // PROXY Protocol
+    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_PROXY)) {
+      ProxyProtocolSessionAccept *pp_acc = new ProxyProtocolSessionAccept();
+      ssl->registerEndpoint(TS_ALPN_PROTOCOL_PROXY, pp_acc);
     }
 
     SCOPED_MUTEX_LOCK(lock, ssl_plugin_mutex, this_ethread());
