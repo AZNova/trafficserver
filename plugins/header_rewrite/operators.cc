@@ -697,9 +697,8 @@ OperatorRMCookie::exec(const Resources &res) const
         if (TS_SUCCESS == TSMimeHdrFieldDestroy(res.bufp, res.hdr_loc, field_loc)) {
           TSDebug(PLUGIN_NAME, "OperatorRMCookie::exec, empty cookie deleted");
         }
-      }
-      else if (TS_SUCCESS ==
-          TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, updated_cookie.c_str(), updated_cookie.size())) {
+      } else if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, updated_cookie.c_str(),
+                                                            updated_cookie.size())) {
         TSDebug(PLUGIN_NAME, "OperatorRMCookie::exec, updated_cookie = [%s]", updated_cookie.c_str());
       }
     }
