@@ -31,9 +31,12 @@
 #include "BIO_fastopen.h"
 #include "Log.h"
 #include "P_SSLClientUtils.h"
+#include "P_SSLSNI.h"
+#include "HttpTunnel.h"
 
 #include <climits>
 #include <string>
+#include <stdbool.h>
 
 #if !TS_USE_SET_RBIO
 // Defined in SSLInternal.c, should probably make a separate include
@@ -934,12 +937,19 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
       // Escape if this is marked to be a tunnel.
       // No data has been read at this point, so we can go
       // directly into blind tunnel mode
-      if (cc && SSLCertContext::OPT_TUNNEL == cc->opt && this->is_transparent) {
-        this->attributes     = HttpProxyPort::TRANSPORT_BLIND_TUNNEL;
-        sslHandShakeComplete = true;
-        SSL_free(this->ssl);
-        this->ssl = nullptr;
-        return EVENT_DONE;
+
+      if (cc && SSLCertContext::OPT_TUNNEL == cc->opt) {
+        if (this->is_transparent) {
+          this->attributes     = HttpProxyPort::TRANSPORT_BLIND_TUNNEL;
+          sslHandShakeComplete = 1;
+          SSL_free(this->ssl);
+          this->ssl = NULL;
+          return EVENT_DONE;
+        } else {
+          SSLConfig::scoped_config params;
+          this->SNIMapping = params->sni_map_enable;
+          hookOpRequested  = SSL_HOOK_OP_TUNNEL;
+        }
       }
 
       // Attach the default SSL_CTX to this SSL session. The default context is never going to be able
@@ -965,40 +975,47 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
     return sslServerHandShakeEvent(err);
 
   case SSL_EVENT_CLIENT:
-    if (this->ssl == nullptr) {
-      SSL_CTX *clientCTX = nullptr;
-      if (this->options.clientCertificate) {
-        const char *certfile = (const char *)this->options.clientCertificate;
-        if (certfile != nullptr) {
-          clientCTX = params->getCTX(certfile);
-          if (clientCTX != nullptr) {
-            Debug("ssl", "context for %s is found at %p", this->options.clientCertificate.get(), (void *)clientCTX);
-          } else {
-            Debug("ssl", "failed to find context for %s", this->options.clientCertificate.get());
-          }
-        }
-      } else {
-        clientCTX = params->client_ctx;
-      }
 
-      if (this->options.clientVerificationFlag && params->clientCACertFilename != nullptr && params->clientCACertPath != nullptr) {
+    char buff[INET6_ADDRSTRLEN];
+
+    if (this->ssl == nullptr) {
+      // Making the check here instead of later, so we only
+      // do this setting immediately after we create the SSL object
+      SNIConfig::scoped_config sniParam;
+      int8_t clientVerify = 0;
+      cchar *serverKey    = this->options.sni_servername;
+      if (!serverKey) {
+        ats_ip_ntop(this->get_remote_addr(), buff, INET6_ADDRSTRLEN);
+        serverKey = buff;
+      }
+      auto nps           = sniParam->getPropertyConfig(serverKey);
+      SSL_CTX *clientCTX = nullptr;
+
+      if (nps) {
+        clientCTX    = nps->ctx;
+        clientVerify = nps->verifyLevel;
+      } else {
+        clientCTX    = params->client_ctx;
+        clientVerify = params->clientVerify;
+      }
+      if (!clientCTX) {
+        SSLErrorVC(this, "failed to create SSL client session");
+        return EVENT_ERROR;
+      }
+      if (clientVerify && params->clientCACertFilename != nullptr && params->clientCACertPath != nullptr) {
         if (!SSL_CTX_load_verify_locations(clientCTX, params->clientCACertFilename, params->clientCACertPath)) {
           SSLError("invalid client CA Certificate file (%s) or CA Certificate path (%s)", params->clientCACertFilename,
                    params->clientCACertPath);
           return EVENT_ERROR;
         }
       }
-      this->ssl = make_ssl_connection(clientCTX, this);
-      if (this->ssl != nullptr) {
-        uint8_t clientVerify = this->options.clientVerificationFlag;
-        int verifyValue      = clientVerify & 1 ? SSL_VERIFY_PEER : SSL_VERIFY_NONE;
-        SSL_set_verify(this->ssl, verifyValue, verify_callback);
-      }
 
+      this->ssl = make_ssl_connection(clientCTX, this);
       if (this->ssl == nullptr) {
         SSLErrorVC(this, "failed to create SSL client session");
         return EVENT_ERROR;
       }
+      SSL_set_verify(this->ssl, clientVerify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, verify_callback);
 
 #if TS_USE_TLS_SNI
       if (this->options.sni_servername) {
@@ -1050,7 +1067,8 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
   // Again no data has been exchanged, so we can go directly
   // without data replay.
   // Note we can't arrive here if a hook is active.
-  if (SSL_HOOK_OP_TUNNEL == hookOpRequested) {
+
+  if (SSL_HOOK_OP_TUNNEL == hookOpRequested && !SNIMapping) {
     this->attributes = HttpProxyPort::TRANSPORT_BLIND_TUNNEL;
     SSL_free(this->ssl);
     this->ssl = nullptr;
@@ -1078,16 +1096,16 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
         if (retval < 0) {
           if (retval == -EAGAIN) {
             // No data at the moment, hang tight
-            SSLDebugVC(this, "SSL handshake: EAGAIN");
+            SSLVCDebug(this, "SSL handshake: EAGAIN");
             return SSL_HANDSHAKE_WANT_READ;
           } else {
             // An error, make us go away
-            SSLDebugVC(this, "SSL handshake error: read_retval=%d", retval);
+            SSLVCDebug(this, "SSL handshake error: read_retval=%d", retval);
             return EVENT_ERROR;
           }
         } else if (retval == 0) {
           // EOF, go away, we stopped in the handshake
-          SSLDebugVC(this, "SSL handshake error: EOF");
+          SSLVCDebug(this, "SSL handshake error: EOF");
           return EVENT_ERROR;
         }
       } else {
@@ -1101,12 +1119,12 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
 
   if (ssl_error != SSL_ERROR_NONE) {
     err = errno;
-    SSLDebugVC(this, "SSL handshake error: %s (%d), errno=%d", SSLErrorName(ssl_error), ssl_error, err);
+    SSLVCDebug(this, "SSL handshake error: %s (%d), errno=%d", SSLErrorName(ssl_error), ssl_error, err);
 
     // start a blind tunnel if tr-pass is set and data does not look like ClientHello
     char *buf = handShakeBuffer ? handShakeBuffer->buf() : nullptr;
     if (getTransparentPassThrough() && buf && *buf != SSL_OP_HANDSHAKE) {
-      SSLDebugVC(this, "Data does not look like SSL handshake, starting blind tunnel");
+      SSLVCDebug(this, "Data does not look like SSL handshake, starting blind tunnel");
       this->attributes     = HttpProxyPort::TRANSPORT_BLIND_TUNNEL;
       sslHandShakeComplete = false;
       return EVENT_CONT;
@@ -1465,6 +1483,8 @@ SSLNetVConnection::sslContextSet(void *ctx)
   return zret;
 }
 
+extern TunnelHashMap TunnelMap; // stores the name of the servers to tunnel to
+
 bool
 SSLNetVConnection::callHooks(TSEvent eventId)
 {
@@ -1530,6 +1550,26 @@ SSLNetVConnection::callHooks(TSEvent eventId)
   }
 
   Debug("ssl", "callHooks iterated to curHook=%p", curHook);
+
+  this->serverName = const_cast<char *>(SSL_get_servername(this->ssl, TLSEXT_NAMETYPE_host_name));
+  if (this->serverName) {
+    auto *hs = TunnelMap.find(this->serverName);
+    if (hs != nullptr) {
+      this->SNIMapping = true;
+      this->attributes = HttpProxyPort::TRANSPORT_BLIND_TUNNEL;
+      return EVENT_DONE;
+    }
+  }
+
+  if (SSL_HOOK_OP_TUNNEL == hookOpRequested && SNIMapping) {
+    this->attributes = HttpProxyPort::TRANSPORT_BLIND_TUNNEL;
+    // Don't mark the handshake as complete yet,
+    // Will be checking for that flag not being set after
+    // we get out of this callback, and then will shuffle
+    // over the buffered handshake packets to the O.S.
+    // sslHandShakeComplete = 1;
+    return EVENT_DONE;
+  }
 
   bool reenabled = true;
   if (curHook != nullptr) {

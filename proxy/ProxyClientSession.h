@@ -31,10 +31,12 @@
 #include "InkAPIInternal.h"
 #include "http/HttpServerSession.h"
 
+extern bool http_client_session_draining;
+
 // Emit a debug message conditional on whether this particular client session
 // has debugging enabled. This should only be called from within a client session
 // member function.
-#define DebugSsn(ssn, tag, ...) DebugSpecific((ssn)->debug(), tag, __VA_ARGS__)
+#define SsnDebug(ssn, tag, ...) SpecificDebug((ssn)->debug(), tag, __VA_ARGS__)
 
 class ProxyClientTransaction;
 struct AclRecord;
@@ -118,6 +120,12 @@ public:
   is_active() const
   {
     return m_active;
+  }
+
+  bool
+  is_draining() const
+  {
+    return http_client_session_draining;
   }
 
   // Initiate an API hook invocation.

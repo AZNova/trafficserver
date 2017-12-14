@@ -411,6 +411,19 @@ Thread Variables
    This setting specifies the number of active client connections
    for use by :option:`traffic_ctl server restart --drain`.
 
+.. ts:cv:: CONFIG proxy.config.restart.stop_listening INT 0
+   :reloadable:
+
+   This option specifies whether |TS| should close listening sockets while shutting down gracefully.
+
+   ===== ======================================================================
+   Value Description
+   ===== ======================================================================
+   ``0`` Listening sockets will be kept open.
+   ``1`` Listening sockets will be closed when |TS| starts shutting down.
+   ===== ======================================================================
+
+
 .. ts:cv:: CONFIG proxy.config.stop.shutdown_timeout INT 0
    :reloadable:
 
@@ -2967,7 +2980,13 @@ Diagnostic Logging Configuration
 .. ts:cv:: CONFIG proxy.config.diags.debug.enabled INT 0
    :reloadable:
 
-   Enables logging for diagnostic messages whose log level is `diag` or `debug`.
+   When set to 1, enables logging for diagnostic messages whose log level is `diag` or `debug`.
+
+   When set to 2, interprets the :ts:cv:`proxy.config.diags.debug.client_ip` setting determine whether diagnostic messages are logged.
+
+.. ts:cv:: CONFIG proxy.config.diags.debug.client_ip STRING NULL
+
+   if :ts:cv:`proxy.config.diags.debug.enabled` is set to 2, this value is tested against the source IP of the incoming connection.  If there is a match, all the diagnostic messages for that connection and the related outgoing connection will be logged.
 
 .. ts:cv:: CONFIG proxy.config.diags.debug.tags STRING http|dns
 
@@ -3187,6 +3206,11 @@ SSL Termination
    :ts:cv:`proxy.config.ssl.server.cert.path` directory. One way to generate this would be to run
    ``head -c48 /dev/urandom | openssl enc -base64 | head -c48 > file.ticket``. Also
    note that OpenSSL session tickets are sensitive to the version of the ca-certificates.
+
+.. ts:cv:: CONFIG proxy.config.ssl.servername.filename STRING ssl_server_name.config
+
+   The filename of the :file:`ssl_server_name.config` configuration file. If relative, it is relative to the
+   configuration directory (ts:cv:`proxy.config.config_dir`).
 
 .. ts:cv:: CONFIG proxy.config.ssl.max_record_size INT 0
 
@@ -3453,6 +3477,14 @@ HTTP/2 Configuration
    :reloadable:
 
    Enable the experimental HTTP/2 Stream Priority feature.
+
+.. ts:cv:: CONFIG proxy.config.http2.active_timeout_in INT 0
+   :reloadable:
+
+   This is the active timeout of the http2 connection. It is set when the connection is opened
+   and keeps ticking regardless of activity level.
+
+   The value of ``0`` specifies that there is no timeout.
 
 .. ts:cv:: CONFIG proxy.config.http2.accept_no_activity_timeout INT 120
    :reloadable:

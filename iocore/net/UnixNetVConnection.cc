@@ -1101,11 +1101,6 @@ UnixNetVConnection::acceptEvent(int event, Event *e)
 
   thread = t;
 
-  if (action_.cancelled) {
-    free(thread);
-    return EVENT_DONE;
-  }
-
   // Send this NetVC to NetHandler and start to polling read & write event.
   if (h->startIO(this) < 0) {
     free(t);
@@ -1396,7 +1391,7 @@ UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout_in)
   Debug("socket", "Set inactive timeout=%" PRId64 ", for NetVC=%p", timeout_in, this);
   if (timeout_in == 0) {
     // set default inactivity timeout
-    timeout_in = HRTIME_SECONDS(nh->default_inactivity_timeout);
+    timeout_in = HRTIME_SECONDS(nh->config.default_inactivity_timeout);
   }
   inactivity_timeout_in      = timeout_in;
   next_inactivity_timeout_at = Thread::get_hrtime() + inactivity_timeout_in;

@@ -226,7 +226,8 @@ DNSProcessor::start(int, size_t stacksize)
 
   if (dns_thread > 0) {
     // TODO: Hmmm, should we just get a single thread some other way?
-    ET_DNS = eventProcessor.register_event_type("ET_DNS");
+    ET_DNS                                  = eventProcessor.register_event_type("ET_DNS");
+    NetHandler::active_thread_types[ET_DNS] = true;
     eventProcessor.schedule_spawn(&initialize_thread_for_net, ET_DNS);
     eventProcessor.spawn_event_threads(ET_DNS, 1, stacksize);
   } else {
@@ -483,7 +484,6 @@ DNSHandler::open_con(sockaddr const *target, bool failed, int icon, bool over_tc
   Debug("dns", "open_con: opening connection %s", ats_ip_nptop(target, ip_text, sizeof ip_text));
 
   if (cur_con.fd != NO_FD) { // Remove old FD from epoll fd
-    cur_con.eio.stop();
     cur_con.close();
   }
 
@@ -568,7 +568,7 @@ DNSHandler::startEvent(int /* event ATS_UNUSED */, Event *e)
       open_cons(nullptr); // use current target address.
       n_con = 1;
     }
-    e->ethread->schedule_every(this, DNS_PERIOD);
+    e->ethread->schedule_every(this, -DNS_PERIOD);
 
     return EVENT_CONT;
   } else {
@@ -591,7 +591,7 @@ DNSHandler::startEvent_sdns(int /* event ATS_UNUSED */, Event *e)
   open_cons(&ip.sa, false, n_con);
   ++n_con; // TODO should n_con be zeroed?
 
-  e->schedule_every(DNS_PERIOD);
+  e->schedule_every(-DNS_PERIOD);
   return EVENT_CONT;
 }
 
@@ -719,6 +719,12 @@ DNSHandler::failover()
     }
     switch_named(name_server);
   } else {
+    if (dns_conn_mode != DNS_CONN_MODE::TCP_ONLY) {
+      udpcon[0].close();
+    }
+    if (dns_conn_mode != DNS_CONN_MODE::UDP_ONLY) {
+      tcpcon[0].close();
+    }
     ip_text_buffer buff;
     Warning("failover: connection to DNS server %s lost, retrying", ats_ip_ntop(&ip.sa, buff, sizeof(buff)));
   }
@@ -1363,7 +1369,7 @@ Lretry:
   if (e->timeout) {
     e->timeout->cancel();
   }
-  e->timeout = h->mutex->thread_holding->schedule_in(e, DNS_PERIOD);
+  e->timeout = h->mutex->thread_holding->schedule_in(e, MUTEX_RETRY_DELAY);
 }
 
 int

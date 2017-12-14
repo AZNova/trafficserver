@@ -149,6 +149,7 @@ traffic_server_SOURCES = \
   ParentConsistentHash.h \
   ParentRoundRobin.cc \
   ParentRoundRobin.h \
+	ParentSelectionStrategy.cc \
   ParentSelection.cc \
   ParentSelection.h \
   Plugin.cc \
@@ -207,6 +208,7 @@ traffic_server_LDADD += \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/lib/tsconfig/libtsconfig.la \
   @HWLOC_LIBS@ \
   @LIBPCRE@ \
   @LIBTCL@ \

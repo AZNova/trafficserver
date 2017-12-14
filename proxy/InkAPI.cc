@@ -43,6 +43,7 @@
 #include "P_HostDB.h"
 #include "P_Cache.h"
 #include "I_RecCore.h"
+#include "P_SSLConfig.h"
 #include "ProxyConfig.h"
 #include "Plugin.h"
 #include "LogObject.h"
@@ -2428,6 +2429,19 @@ TSUrlPercentEncode(TSMBuffer bufp, TSMLoc obj, char *dst, size_t dst_size, size_
   return ret;
 }
 
+// pton
+TSReturnCode
+TSIpStringToAddr(const char *str, size_t str_len, sockaddr *addr)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)str) == TS_SUCCESS);
+
+  if (0 != ats_ip_pton(ts::string_view(str, str_len), addr)) {
+    return TS_ERROR;
+  }
+
+  return TS_SUCCESS;
+}
+
 ////////////////////////////////////////////////////////////////////
 //
 // MIME Headers
@@ -4662,7 +4676,7 @@ TSHttpTxnSsnGet(TSHttpTxn txnp)
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
-  return reinterpret_cast<TSHttpSsn>(sm->ua_session ? (TSHttpSsn)sm->ua_session->get_parent() : nullptr);
+  return reinterpret_cast<TSHttpSsn>(sm->ua_txn ? (TSHttpSsn)sm->ua_txn->get_parent() : nullptr);
 }
 
 // TODO: Is this still necessary ??
@@ -5538,8 +5552,8 @@ TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, const struct sockaddr *addr)
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   HttpSM *sm = (HttpSM *)txnp;
 
-  sm->ua_session->set_outbound_port(ats_ip_port_host_order(addr));
-  sm->ua_session->set_outbound_ip(IpAddr(addr));
+  sm->ua_txn->set_outbound_port(ats_ip_port_host_order(addr));
+  sm->ua_txn->set_outbound_ip(IpAddr(addr));
   return TS_ERROR;
 }
 
@@ -5568,11 +5582,11 @@ TSHttpTxnOutgoingTransparencySet(TSHttpTxn txnp, int flag)
   }
 
   HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
-  if (nullptr == sm || nullptr == sm->ua_session) {
+  if (nullptr == sm || nullptr == sm->ua_txn) {
     return TS_ERROR;
   }
 
-  sm->ua_session->set_outbound_transparent(flag);
+  sm->ua_txn->set_outbound_transparent(flag);
   return TS_SUCCESS;
 }
 
@@ -5581,11 +5595,11 @@ TSHttpTxnClientPacketMarkSet(TSHttpTxn txnp, int mark)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   HttpSM *sm = (HttpSM *)txnp;
-  if (nullptr == sm->ua_session) {
+  if (nullptr == sm->ua_txn) {
     return TS_ERROR;
   }
 
-  NetVConnection *vc = sm->ua_session->get_netvc();
+  NetVConnection *vc = sm->ua_txn->get_netvc();
   if (nullptr == vc) {
     return TS_ERROR;
   }
@@ -5602,8 +5616,8 @@ TSHttpTxnServerPacketMarkSet(TSHttpTxn txnp, int mark)
   HttpSM *sm = (HttpSM *)txnp;
 
   // change the mark on an active server session
-  if (nullptr != sm->ua_session) {
-    HttpServerSession *ssn = sm->ua_session->get_server_session();
+  if (nullptr != sm->ua_txn) {
+    HttpServerSession *ssn = sm->ua_txn->get_server_session();
     if (nullptr != ssn) {
       NetVConnection *vc = ssn->get_netvc();
       if (vc != nullptr) {
@@ -5623,11 +5637,11 @@ TSHttpTxnClientPacketTosSet(TSHttpTxn txnp, int tos)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   HttpSM *sm = (HttpSM *)txnp;
-  if (nullptr == sm->ua_session) {
+  if (nullptr == sm->ua_txn) {
     return TS_ERROR;
   }
 
-  NetVConnection *vc = sm->ua_session->get_netvc();
+  NetVConnection *vc = sm->ua_txn->get_netvc();
   if (nullptr == vc) {
     return TS_ERROR;
   }
@@ -5644,8 +5658,8 @@ TSHttpTxnServerPacketTosSet(TSHttpTxn txnp, int tos)
   HttpSM *sm = (HttpSM *)txnp;
 
   // change the tos on an active server session
-  if (nullptr != sm->ua_session) {
-    HttpServerSession *ssn = sm->ua_session->get_server_session();
+  if (nullptr != sm->ua_txn) {
+    HttpServerSession *ssn = sm->ua_txn->get_server_session();
     if (nullptr != ssn) {
       NetVConnection *vc = ssn->get_netvc();
       if (vc != nullptr) {
@@ -5665,11 +5679,11 @@ TSHttpTxnClientPacketDscpSet(TSHttpTxn txnp, int dscp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   HttpSM *sm = (HttpSM *)txnp;
-  if (nullptr == sm->ua_session) {
+  if (nullptr == sm->ua_txn) {
     return TS_ERROR;
   }
 
-  NetVConnection *vc = sm->ua_session->get_netvc();
+  NetVConnection *vc = sm->ua_txn->get_netvc();
   if (nullptr == vc) {
     return TS_ERROR;
   }
@@ -5686,8 +5700,8 @@ TSHttpTxnServerPacketDscpSet(TSHttpTxn txnp, int dscp)
   HttpSM *sm = (HttpSM *)txnp;
 
   // change the tos on an active server session
-  if (nullptr != sm->ua_session) {
-    HttpServerSession *ssn = sm->ua_session->get_server_session();
+  if (nullptr != sm->ua_txn) {
+    HttpServerSession *ssn = sm->ua_txn->get_server_session();
     if (nullptr != ssn) {
       NetVConnection *vc = ssn->get_netvc();
       if (vc != nullptr) {
@@ -7669,7 +7683,7 @@ TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len)
   }
 
   HttpSM *sm          = reinterpret_cast<HttpSM *>(txnp);
-  Http2Stream *stream = dynamic_cast<Http2Stream *>(sm->ua_session);
+  Http2Stream *stream = dynamic_cast<Http2Stream *>(sm->ua_txn);
   if (stream) {
     Http2ClientSession *parent = static_cast<Http2ClientSession *>(stream->get_parent());
     if (!parent->is_url_pushed(url, url_len)) {
@@ -8973,7 +8987,7 @@ TSHttpTxnCloseAfterResponse(TSHttpTxn txnp, int should_close)
   HttpSM *sm = (HttpSM *)txnp;
   if (should_close) {
     sm->t_state.client_info.keep_alive = HTTP_NO_KEEPALIVE;
-    if (sm->ua_session) {
+    if (sm->ua_txn) {
       sm->set_ua_half_close_flag();
     }
   }
@@ -9178,6 +9192,12 @@ TSSslContextDestroy(TSSslContext ctx)
   SSLReleaseContext(reinterpret_cast<SSL_CTX *>(ctx));
 }
 
+tsapi void
+TSSslTicketKeyUpdate(char *ticketData, int ticketDataLen)
+{
+  SSLTicketKeyConfig::reconfigure_data(ticketData, ticketDataLen);
+}
+
 void
 TSRegisterProtocolSet(TSVConn sslp, TSNextProtocolSet ps)
 {
@@ -9262,6 +9282,62 @@ TSVConnReenable(TSVConn vconn)
       // We schedule the reenable to the home thread of ssl_vc.
       ssl_vc->thread->schedule_imm(new TSSslCallback(ssl_vc));
     }
+  }
+}
+
+extern SSLSessionCache *session_cache; // declared extern in P_SSLConfig.h
+
+TSSslSession
+TSSslSessionGet(const TSSslSessionID *session_id)
+{
+  SSL_SESSION *session = NULL;
+  if (session_id && session_cache) {
+    session_cache->getSession(reinterpret_cast<const SSLSessionID &>(*session_id), &session);
+  }
+  return reinterpret_cast<TSSslSession>(session);
+}
+
+int
+TSSslSessionGetBuffer(const TSSslSessionID *session_id, char *buffer, int *len_ptr)
+{
+  int true_len = 0;
+  // Don't get if there is no session id or the cache is not yet set up
+  if (session_id && session_cache && len_ptr) {
+    true_len = session_cache->getSessionBuffer(reinterpret_cast<const SSLSessionID &>(*session_id), buffer, *len_ptr);
+  }
+  return true_len;
+}
+
+TSReturnCode
+TSSslSessionInsert(const TSSslSessionID *session_id, TSSslSession add_session)
+{
+  // Don't insert if there is no session id or the cache is not yet set up
+  if (session_id && session_cache) {
+    if (is_debug_tag_set("ssl.session_cache")) {
+      const SSLSessionID *sid = reinterpret_cast<const SSLSessionID *>(session_id);
+      char buf[sid->len * 2 + 1];
+      sid->toString(buf, sizeof(buf));
+      Debug("ssl.session_cache.insert", "TSSslSessionInsert: Inserting session '%s' ", buf);
+    }
+    SSL_SESSION *session = reinterpret_cast<SSL_SESSION *>(add_session);
+    session_cache->insertSession(reinterpret_cast<const SSLSessionID &>(*session_id), session);
+    // insertSession returns void, assume all went well
+    return TS_SUCCESS;
+  } else {
+    return TS_ERROR;
+  }
+}
+
+TSReturnCode
+TSSslSessionRemove(const TSSslSessionID *session_id)
+{
+  // Don't remove if there is no session id or the cache is not yet set up
+  if (session_id && session_cache) {
+    session_cache->removeSession(reinterpret_cast<const SSLSessionID &>(*session_id));
+    // removeSession returns void, assume all went well
+    return TS_SUCCESS;
+  } else {
+    return TS_ERROR;
   }
 }
 

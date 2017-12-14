@@ -81,6 +81,7 @@ public:
   update_sent_count(unsigned num_bytes)
   {
     bytes_sent += num_bytes;
+    this->write_vio.ndone += num_bytes;
   }
 
   Http2StreamId
@@ -147,11 +148,20 @@ public:
   VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuffer, bool owner = false) override;
   void do_io_close(int lerrno = -1) override;
   void initiating_close();
+  void terminate_if_possible();
   void do_io_shutdown(ShutdownHowTo_t) override {}
   void update_read_request(int64_t read_len, bool send_update);
   bool update_write_request(IOBufferReader *buf_reader, int64_t write_len, bool send_update);
   void reenable(VIO *vio) override;
   virtual void transaction_done() override;
+  virtual bool
+  ignore_keep_alive() override
+  {
+    // If we return true here, Connection header will always be "close".
+    // It should be handled as the same as HTTP/1.1
+    return false;
+  }
+
   void send_response_body();
   void push_promise(URL &url, const MIMEField *accept_encoding);
 
@@ -274,7 +284,8 @@ private:
   uint64_t bytes_sent  = 0;
 
   ChunkedHandler chunked_handler;
-  Event *cross_thread_event = nullptr;
+  Event *cross_thread_event      = nullptr;
+  Event *buffer_full_write_event = nullptr;
 
   // Support stream-specific timeouts
   ink_hrtime active_timeout = 0;

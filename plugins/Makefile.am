@@ -73,8 +73,13 @@ include experimental/ssl_cert_loader/Makefile.inc
 include experimental/sslheaders/Makefile.inc
 include experimental/stale_while_revalidate/Makefile.inc
 include experimental/stream_editor/Makefile.inc
+include experimental/system_stats/Makefile.inc
 include experimental/ts_lua/Makefile.inc
 include experimental/url_sig/Makefile.inc
+
+if BUILD_URI_SIGNING_PLUGIN
+include experimental/uri_signing/Makefile.inc
+endif
 
 if BUILD_MEMCACHED_REMAP_PLUGIN
 include experimental/memcached_remap/Makefile.inc
