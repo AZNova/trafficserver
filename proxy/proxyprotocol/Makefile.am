@@ -32,12 +32,15 @@ AM_CPPFLAGS += \
 
 noinst_LIBRARIES = libproxyprotocol.a
 
-libhttp2_a_SOURCES = \
-  Http2ClientSession.cc \
-  Http2ClientSession.h \
-  Http2SessionAccept.cc \
-  Http2SessionAccept.h \
+libproxyprotocol_a_SOURCES = \
+  ProxyProtocolClientSession.cc \
+  ProxyProtocolClientSession.h \
+  ProxyProtocolSessionAccept.cc \
+  ProxyProtocolSessionAccept.h \
   ProxyProtocol.h
+
+#  ProxyProtocolConnectionState.cc 
+#  ProxyProtocolConnectionState.h 
 
 #if BUILD_TESTS
 #  libhttp2_a_SOURCES += \

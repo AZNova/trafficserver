@@ -47,7 +47,26 @@ proto_is_http2(IOBufferReader *reader)
 }
 
 static bool
-proto_is_proxy(IOBufferReader *reader)
+proto_is_proxy_v1(IOBufferReader *reader)
+{
+  char buf[PROXY_V1_CONNECTION_PREFACE_LEN];
+  char *end;
+  ptrdiff_t nbytes;
+
+  end    = reader->memcpy(buf, sizeof(buf), 0 /* offset */);
+  nbytes = end - buf;
+
+  // Client must send at least 4 bytes to get a reasonable match.
+  if (nbytes < MIN_V1_HDR_LEN) {
+    return false;
+  }
+
+  ink_assert(nbytes <= (int64_t)PROXY_V1_CONNECTION_PREFACE_LEN);
+  return memcmp(PROXY_V1_CONNECTION_PREFACE, buf, PROXY_V1_CONNECTION_PREFACE_LEN_MIN) == 0;
+}
+
+static bool
+proto_is_proxy_v2(IOBufferReader *reader)
 {
   char buf[PROXY_V2_CONNECTION_PREFACE_LEN];
   char *end;
@@ -61,8 +80,8 @@ proto_is_proxy(IOBufferReader *reader)
     return false;
   }
 
-  ink_assert(nbytes <= (int64_t)PROXY_V2_CONNECTION_PREFACE_LEN);
-  return memcmp(PROXY_V2_CONNECTION_PREFACE, buf, nbytes) == 0;
+  ink_assert(nbytes <= (int64_t)PROXY_V2_CONNECTION_PREFACE_LEN_MIN);
+  return memcmp(PROXY_V2_CONNECTION_PREFACE, buf, PROXY_V2_CONNECTION_PREFACE_LEN) == 0;
 }
 
 struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessionAcceptEnums {
@@ -110,11 +129,17 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
       goto done;
     }
 
-    if (proto_is_http2(reader)) {
-      key = PROTO_HTTP2;
-    } else if (proto_is_proxy(reader)) {
+    if (proto_is_proxy_v1(reader)) {
+      Debug("http", "ioCompletionEvent: protocol is proxy_v1");
+      key = PROTO_PROXY_V1;
+    } else if (proto_is_proxy_v2(reader)) {
+      Debug("http", "ioCompletionEvent: protocol is proxy_v2");
+      key = PROTO_PROXY_V2;
+    } else if (proto_is_http2(reader)) {
+      Debug("http", "ioCompletionEvent: protocol is http2");
       key = PROTO_HTTP2;
     } else {
+      Debug("http", "ioCompletionEvent: protocol is http");
       key = PROTO_HTTP;
     }
 

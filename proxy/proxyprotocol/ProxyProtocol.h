@@ -24,7 +24,154 @@
 #ifndef ProxyProtocol_H_
 #define ProxyProtocol_H_
 
+#include "ts/ink_defs.h"
+#include "ts/ink_memory.h"
+#include "P_RecDefs.h"
+
+// Statistics
+enum {
+  PROXY_V1_STAT_CURRENT_CLIENT_SESSION_COUNT, // Current # of active PROXY_V1
+                                           // sessions.
+  PROXY_V1_STAT_CURRENT_CLIENT_STREAM_COUNT,  // Current # of active PROXY_V1 streams.
+  PROXY_V1_STAT_TOTAL_CLIENT_STREAM_COUNT,
+  PROXY_V1_STAT_TOTAL_TRANSACTIONS_TIME,       // Total stream time and streams
+  PROXY_V1_STAT_TOTAL_CLIENT_CONNECTION_COUNT, // Total connections running http2
+  PROXY_V1_STAT_STREAM_ERRORS_COUNT,
+  PROXY_V1_STAT_CONNECTION_ERRORS_COUNT,
+  PROXY_V1_STAT_SESSION_DIE_DEFAULT,
+  PROXY_V1_STAT_SESSION_DIE_OTHER,
+  PROXY_V1_STAT_SESSION_DIE_ACTIVE,
+  PROXY_V1_STAT_SESSION_DIE_INACTIVE,
+  PROXY_V1_STAT_SESSION_DIE_EOS,
+  PROXY_V1_STAT_SESSION_DIE_ERROR,
+
+  PROXY_V1_N_STATS // Terminal counter, NOT A STAT INDEX.
+};
+
+#define PROXY_V1_INCREMENT_THREAD_DYN_STAT(_s, _t) RecIncrRawStat(proxyproto_rsb, _t, (int)_s, 1);
+#define PROXY_V1_DECREMENT_THREAD_DYN_STAT(_s, _t) RecIncrRawStat(proxyproto_rsb, _t, (int)_s, -1);
+#define PROXY_V1_SUM_THREAD_DYN_STAT(_s, _t, _v) RecIncrRawStat(proxyproto_rsb, _t, (int)_s, _v);
+extern RecRawStatBlock *proxyproto_rsb; // Container for statistics.
+
 // http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+
+// 2.1. Human-readable header format (Version 1)
+//
+// This is the format specified in version 1 of the protocol. It consists in one
+// line of US-ASCII text matching exactly the following block, sent immediately
+// and at once upon the connection establishment and prepended before any data
+// flowing from the sender to the receiver :
+//
+//   - a string identifying the protocol : "PROXY" ( \x50 \x52 \x4F \x58 \x59 )
+//     Seeing this string indicates that this is version 1 of the protocol.
+//
+//   - exactly one space : " " ( \x20 )
+//
+//   - a string indicating the proxied INET protocol and family. As of version 1,
+//     only "TCP4" ( \x54 \x43 \x50 \x34 ) for TCP over IPv4, and "TCP6"
+//     ( \x54 \x43 \x50 \x36 ) for TCP over IPv6 are allowed. Other, unsupported,
+//     or unknown protocols must be reported with the name "UNKNOWN" ( \x55 \x4E
+//     \x4B \x4E \x4F \x57 \x4E ). For "UNKNOWN", the rest of the line before the
+//     CRLF may be omitted by the sender, and the receiver must ignore anything
+//     presented before the CRLF is found. Note that an earlier version of this
+//     specification suggested to use this when sending health checks, but this
+//     causes issues with servers that reject the "UNKNOWN" keyword. Thus is it
+//     now recommended not to send "UNKNOWN" when the connection is expected to
+//     be accepted, but only when it is not possible to correctly fill the PROXY
+//     line.
+//
+//   - exactly one space : " " ( \x20 )
+//
+//   - the layer 3 source address in its canonical format. IPv4 addresses must be
+//     indicated as a series of exactly 4 integers in the range [0..255] inclusive
+//     written in decimal representation separated by exactly one dot between each
+//     other. Heading zeroes are not permitted in front of numbers in order to
+//     avoid any possible confusion with octal numbers. IPv6 addresses must be
+//     indicated as series of 4 hexadecimal digits (upper or lower case) delimited
+//     by colons between each other, with the acceptance of one double colon
+//     sequence to replace the largest acceptable range of consecutive zeroes. The
+//     total number of decoded bits must exactly be 128. The advertised protocol
+//     family dictates what format to use.
+//
+//   - exactly one space : " " ( \x20 )
+//
+//   - the layer 3 destination address in its canonical format. It is the same
+//     format as the layer 3 source address and matches the same family.
+//
+//   - exactly one space : " " ( \x20 )
+//
+//   - the TCP source port represented as a decimal integer in the range
+//     [0..65535] inclusive. Heading zeroes are not permitted in front of numbers
+//     in order to avoid any possible confusion with octal numbers.
+//
+//   - exactly one space : " " ( \x20 )
+//
+//   - the TCP destination port represented as a decimal integer in the range
+//     [0..65535] inclusive. Heading zeroes are not permitted in front of numbers
+//     in order to avoid any possible confusion with octal numbers.
+//
+//   - the CRLF sequence ( \x0D \x0A )
+//
+//
+// The maximum line lengths the receiver must support including the CRLF are :
+//   - TCP/IPv4 :
+//       "PROXY TCP4 255.255.255.255 255.255.255.255 65535 65535\r\n"
+//     => 5 + 1 + 4 + 1 + 15 + 1 + 15 + 1 + 5 + 1 + 5 + 2 = 56 chars
+//
+//   - TCP/IPv6 :
+//       "PROXY TCP6 ffff:f...f:ffff ffff:f...f:ffff 65535 65535\r\n"
+//     => 5 + 1 + 4 + 1 + 39 + 1 + 39 + 1 + 5 + 1 + 5 + 2 = 104 chars
+//
+//   - unknown connection (short form) :
+//       "PROXY UNKNOWN\r\n"
+//     => 5 + 1 + 7 + 2 = 15 chars
+//
+//   - worst case (optional fields set to 0xff) :
+//       "PROXY UNKNOWN ffff:f...f:ffff ffff:f...f:ffff 65535 65535\r\n"
+//     => 5 + 1 + 7 + 1 + 39 + 1 + 39 + 1 + 5 + 1 + 5 + 2 = 107 chars
+//
+// So a 108-byte buffer is always enough to store all the line and a trailing zero
+// for string processing.
+//
+// The receiver must wait for the CRLF sequence before starting to decode the
+// addresses in order to ensure they are complete and properly parsed. If the CRLF
+// sequence is not found in the first 107 characters, the receiver should declare
+// the line invalid. A receiver may reject an incomplete line which does not
+// contain the CRLF sequence in the first atomic read operation. The receiver must
+// not tolerate a single CR or LF character to end the line when a complete CRLF
+// sequence is expected.
+//
+// Any sequence which does not exactly match the protocol must be discarded and
+// cause the receiver to abort the connection. It is recommended to abort the
+// connection as soon as possible so that the sender gets a chance to notice the
+// anomaly and log it.
+//
+// If the announced transport protocol is "UNKNOWN", then the receiver knows that
+// the sender speaks the correct PROXY protocol with the appropriate version, and
+// SHOULD accept the connection and use the real connection's parameters as if
+// there were no PROXY protocol header on the wire. However, senders SHOULD not
+// use the "UNKNOWN" protocol when they are the initiators of outgoing connections
+// because some receivers may reject them. When a load balancing proxy has to send
+// health checks to a server, it SHOULD build a valid PROXY line which it will
+// fill with a getsockname()/getpeername() pair indicating the addresses used. It
+// is important to understand that doing so is not appropriate when some source
+// address translation is performed between the sender and the receiver.
+//
+// An example of such a line before an HTTP request would look like this (CR
+// marked as "\r" and LF marked as "\n") :
+//
+//     PROXY TCP4 192.168.0.1 192.168.0.11 56324 443\r\n
+//     GET / HTTP/1.1\r\n
+//     Host: 192.168.0.11\r\n
+//     \r\n
+//
+// For the sender, the header line is easy to put into the output buffers once the
+// connection is established. Note that since the line is always shorter than an
+// MSS, the sender is guaranteed to always be able to emit it at once and should
+// not even bother handling partial sends. For the receiver, once the header is
+// parsed, it is easy to skip it from the input buffers. Please consult section 9
+// for implementation suggestions.
+
 
 // 2.2. Binary header format (version 2)
 //
@@ -241,8 +388,12 @@ typedef union {
 const char *const PROXY_V1_CONNECTION_PREFACE = "\x50\x52\x4F\x58\x59";
 const char *const PROXY_V2_CONNECTION_PREFACE = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A\x02";
 
-const size_t PROXY_V2_CONNECTION_PREFACE_LEN = 16
-;
+const size_t PROXY_V1_CONNECTION_PREFACE_LEN_MIN = 5;
+const size_t PROXY_V2_CONNECTION_PREFACE_LEN_MIN = 13;
+
+const size_t PROXY_V1_CONNECTION_PREFACE_LEN = 108;
+const size_t PROXY_V2_CONNECTION_PREFACE_LEN = 16;
+
 #define MIN_V1_HDR_LEN 15
 #define MIN_V2_HDR_LEN 16
 #define MIN_HDR_LEN MIN_V1_HDR_LEN

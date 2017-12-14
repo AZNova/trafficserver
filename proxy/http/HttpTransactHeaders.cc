@@ -849,6 +849,13 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
 }
 
 void
+HttpTransactHeaders::insert_forwarded_header_in_request(HttpTransact::State *s, HTTPHdr *header)
+{
+  // TODO:  Yeah, we're gonna need something in here to build and insert the
+  // Forwarded: header- reveller - PROXY Protocol
+}
+
+void
 HttpTransactHeaders::insert_hsts_header_in_response(HttpTransact::State *s, HTTPHdr *header)
 {
   char new_hsts_string[64];

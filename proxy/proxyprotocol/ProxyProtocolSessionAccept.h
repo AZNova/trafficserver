@@ -21,8 +21,8 @@
   limitations under the License.
  */
 
-#ifndef __HTTP2_SESSION_ACCEPT_H__
-#define __HTTP2_SESSION_ACCEPT_H__
+#ifndef __PROXYPROTOCOL_SESSION_ACCEPT_H__
+#define __PROXYPROTOCOL_SESSION_ACCEPT_H__
 
 #include "ts/ink_platform.h"
 #include "I_Net.h"
@@ -39,19 +39,19 @@
 //
 // CONFIG proxy.config.http.server_ports STRING 80:proto=http2 443:ssl:proto=h2-12
 
-struct Http2SessionAccept : public SessionAccept {
-  explicit Http2SessionAccept(const HttpSessionAccept::Options &);
-  ~Http2SessionAccept();
+struct ProxyProtocolSessionAccept : public SessionAccept {
+  explicit ProxyProtocolSessionAccept(const HttpSessionAccept::Options &);
+  ~ProxyProtocolSessionAccept();
 
   bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *);
   int mainEvent(int event, void *netvc);
 
   // noncopyable
-  Http2SessionAccept(const Http2SessionAccept &) = delete;
-  Http2SessionAccept &operator=(const Http2SessionAccept &) = delete;
+  ProxyProtocolSessionAccept(const ProxyProtocolSessionAccept &) = delete;
+  ProxyProtocolSessionAccept &operator=(const ProxyProtocolSessionAccept &) = delete;
 
 private:
   HttpSessionAccept::Options options;
 };
 
-#endif // __HTTP2_SESSION_ACCEPT_H__
+#endif // __PROXYPROTOCOL_SESSION_ACCEPT_H__

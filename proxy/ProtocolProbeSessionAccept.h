@@ -31,10 +31,11 @@ struct ProtocolProbeSessionAcceptEnums {
   /// There is a child acceptor for each group which
   /// handles finer grained stuff.
   enum ProtoGroupKey {
-    PROTO_HTTP,    ///< HTTP group (0.9-1.1)
-    PROTO_HTTP2,   ///< HTTP 2 group
-    PROTO_PROXY,   ///< Proxy Protocol group
-    N_PROTO_GROUPS ///< Size value.
+    PROTO_HTTP,       ///< HTTP group (0.9-1.1)
+    PROTO_HTTP2,      ///< HTTP 2 group
+    PROTO_PROXY_V1,   ///< Proxy Protocol group
+    PROTO_PROXY_V2,   ///< Proxy Protocol group
+    N_PROTO_GROUPS    ///< Size value.
   };
 };
 

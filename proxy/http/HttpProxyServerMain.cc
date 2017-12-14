@@ -36,6 +36,7 @@
 #include "HttpTunnel.h"
 #include "ts/Tokenizer.h"
 #include "P_SSLNextProtocolAccept.h"
+#include "proxyprotocol/ProxyProtocolSessionAccept.h"
 #include "proxyprotocol/ProxyProtocol.h"
 #include "ProtocolProbeSessionAccept.h"
 #include "http2/Http2SessionAccept.h"
@@ -191,8 +192,12 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
     probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_HTTP2, new Http2SessionAccept(accept_opt));
   }
 
-  if (port.m_session_protocol_preference.intersects(PROXY_PROTOCOL_SET)) {
-    probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_PROXY, new Http2SessionAccept(accept_opt));
+  if (port.m_session_protocol_preference.intersects(PROXY_V1_PROTOCOL_SET)) {
+    probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_PROXY_V1, new ProxyProtocolSessionAccept(accept_opt));
+  }
+
+  if (port.m_session_protocol_preference.intersects(PROXY_V2_PROTOCOL_SET)) {
+    probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_PROXY_V2, new ProxyProtocolSessionAccept(accept_opt));
   }
 
   if (port.isSSL()) {
@@ -221,10 +226,16 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
       ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_2_0, acc);
     }
 
-    // PROXY Protocol
-    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_PROXY)) {
-      ProxyProtocolSessionAccept *pp_acc = new ProxyProtocolSessionAccept();
-      ssl->registerEndpoint(TS_ALPN_PROTOCOL_PROXY, pp_acc);
+    // PROXY Protocol V1
+    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_PROXY_V1)) {
+      ProxyProtocolSessionAccept *pp1_acc = new ProxyProtocolSessionAccept(accept_opt);
+      ssl->registerEndpoint(TS_ALPN_PROTOCOL_PROXY_V1, pp1_acc);
+    }
+
+    // PROXY Protocol V2
+    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_PROXY_V2)) {
+      ProxyProtocolSessionAccept *pp2_acc = new ProxyProtocolSessionAccept(accept_opt);
+      ssl->registerEndpoint(TS_ALPN_PROTOCOL_PROXY_V2, pp2_acc);
     }
 
     SCOPED_MUTEX_LOCK(lock, ssl_plugin_mutex, this_ethread());

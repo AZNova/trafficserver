@@ -46,20 +46,16 @@ ProxyProtocolSessionAccept::accept(NetVConnection *netvc, MIOBuffer *iobuf, IOBu
     return false;
   }
 
-  if (proxyprotocol_drain) {
-    return false;
-  }
-
   netvc->attributes = this->options.transport_type;
 
   if (is_debug_tag_set("proxyprotocol_seq")) {
     ip_port_text_buffer ipb;
-
     Debug("proxyprotocol_seq", "[ProxyProtocolSessionAccept:mainEvent %p] accepted connection from %s transport type = %d", netvc,
           ats_ip_nptop(client_ip, ipb, sizeof(ipb)), netvc->attributes);
   }
 
-  ProxyProtocolClientSession *new_session = THREAD_ALLOC_INIT(proxyprotocolClientSessionAllocator, this_ethread());
+//  ProxyProtocolClientSession *new_session = THREAD_ALLOC_INIT(proxyprotocolClientSessionAllocator, this_ethread());
+  ProxyProtocolClientSession *new_session = ProxyProtocolClientSession::alloc();
   new_session->acl_record         = session_acl_record;
   new_session->new_connection(netvc, iobuf, reader, false /* backdoor */);
 
@@ -83,9 +79,9 @@ ProxyProtocolSessionAccept::mainEvent(int event, void *data)
 
   // XXX We should hoist the error handling so that all the protocols generate the statistics
   // without code duplication.
-  if (((long)data) == -ECONNABORTED) {
-    HTTP_SUM_DYN_STAT(http_ua_msecs_counts_errors_pre_accept_hangups_stat, 0);
-  }
+//  if (((long)data) == -ECONNABORTED) {
+//    HTTP_SUM_DYN_STAT(http_ua_msecs_counts_errors_pre_accept_hangups_stat, 0);
+//  }
 
   ink_abort("ProxyProtocol accept received fatal error: errno = %d", -((int)(intptr_t)data));
   return EVENT_CONT;

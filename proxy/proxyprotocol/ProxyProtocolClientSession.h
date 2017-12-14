@@ -27,151 +27,113 @@
 #include "ProxyProtocol.h"
 #include "Plugin.h"
 #include "ProxyClientSession.h"
-#include "ProxyProtocolConnectionState.h"
+//#include "ProxyProtocolConnectionState.h"
 #include <ts/string_view.h>
 #include <ts/ink_inet.h>
 
-// Name                       Edata                 Description
-// PROXYPROTOCOL_SESSION_EVENT_INIT   ProxyProtocolClientSession *  Proxy Protocol session is born
-// PROXYPROTOCOL_SESSION_EVENT_FINI   ProxyProtocolClientSession *  Proxy Protocol session is ended
-// PROXYPROTOCOL_SESSION_EVENT_RECV   ProxyProtocolFrame *          Received a frame
-// PROXYPROTOCOL_SESSION_EVENT_XMIT   ProxyProtocolFrame *          Send this frame
+class ProxyProtocolClientSession;
+typedef int (*ProxyProtocolClientSessionHandler)(TSCont contp, TSEvent event, void *data);
 
-#define PROXYPROTOCOL_SESSION_EVENT_INIT (PROXYPROTOCOL_SESSION_EVENTS_START + 1)
-#define PROXYPROTOCOL_SESSION_EVENT_FINI (PROXYPROTOCOL_SESSION_EVENTS_START + 2)
-#define PROXYPROTOCOL_SESSION_EVENT_RECV (PROXYPROTOCOL_SESSION_EVENTS_START + 3)
-#define PROXYPROTOCOL_SESSION_EVENT_XMIT (PROXYPROTOCOL_SESSION_EVENTS_START + 4)
-#define PROXYPROTOCOL_SESSION_EVENT_SHUTDOWN_INIT (PROXYPROTOCOL_SESSION_EVENTS_START + 5)
-#define PROXYPROTOCOL_SESSION_EVENT_SHUTDOWN_CONT (PROXYPROTOCOL_SESSION_EVENTS_START + 6)
-
-size_t const PROXYPROTOCOL_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
-
-// To support Upgrade: h2c
-struct ProxyProtocolUpgradeContext {
-  ProxyProtocolUpgradeContext() : req_header(NULL) {}
-  ~ProxyProtocolUpgradeContext()
-  {
-    if (req_header) {
-      req_header->clear();
-      delete req_header;
-    }
-  }
-
-  // Modified request header
-  HTTPHdr *req_header;
-
-  // Decoded ProxyProtocol-Settings Header Field
-  ProxyProtocolConnectionSettings client_settings;
-};
-
-class ProxyProtocolFrame
+class ProxyProtocolRequest
 {
 public:
-  ProxyProtocolFrame(const ProxyProtocolFrameHeader &h, IOBufferReader *r)
+  ProxyProtocolRequest()
+    : event(0),
+      proxyprotocol_sm(NULL),
+      stream_id(-1),
+      start_time(0),
+      fetch_sm(NULL),
+      has_submitted_data(false),
+      need_resume_data(false),
+      fetch_data_len(0),
+      delta_window_size(0),
+      fetch_body_completed(false)
   {
-    this->hdr      = h;
-    this->ioreader = r;
   }
 
-  ProxyProtocolFrame(ProxyProtocolFrameType type, ProxyProtocolStreamId streamid, uint8_t flags)
+  ProxyProtocolRequest(ProxyProtocolClientSession *sm, int id)
+    : event(0),
+      proxyprotocol_sm(NULL),
+      stream_id(-1),
+      start_time(0),
+      fetch_sm(NULL),
+      has_submitted_data(false),
+      need_resume_data(false),
+      fetch_data_len(0),
+      delta_window_size(0),
+      fetch_body_completed(false)
   {
-    this->hdr      = {0, (uint8_t)type, flags, streamid};
-    this->ioreader = NULL;
+    init(sm, id);
   }
 
-  IOBufferReader *
-  reader() const
-  {
-    return ioreader;
-  }
+  void init(ProxyProtocolClientSession *sm, int id);
+  void clear();
 
-  const ProxyProtocolFrameHeader &
-  header() const
-  {
-    return this->hdr;
-  }
+  static ProxyProtocolRequest *alloc();
+  //void destroy();
 
-  // Allocate an IOBufferBlock for payload of this frame.
   void
-  alloc(int index)
+  append_nv(char **nv)
   {
-    this->ioblock = new_IOBufferBlock();
-    this->ioblock->alloc(index);
-  }
-
-  // Return the writeable buffer space for frame payload
-  IOVec
-  write()
-  {
-    return make_iovec(this->ioblock->end(), this->ioblock->write_avail());
-  }
-
-  // Once the frame has been serialized, update the payload length of frame header.
-  void
-  finalize(size_t nbytes)
-  {
-    if (this->ioblock) {
-      ink_assert((int64_t)nbytes <= this->ioblock->write_avail());
-      this->ioblock->fill(nbytes);
-
-      this->hdr.length = this->ioblock->size();
+    for (int i = 0; nv[i]; i += 2) {
+      headers.push_back(std::make_pair(nv[i], nv[i + 1]));
     }
   }
 
-  void
-  xmit(MIOBuffer *iobuffer)
-  {
-    // Write frame header
-    uint8_t buf[PROXYPROTOCOL_FRAME_HEADER_LEN];
-    proxyprotocol_write_frame_header(hdr, make_iovec(buf));
-    iobuffer->write(buf, sizeof(buf));
+public:
+  int event;
+  ProxyProtocolClientSession *proxyprotocol_sm;
+  int stream_id;
+  TSHRTime start_time;
+  TSFetchSM fetch_sm;
+  bool has_submitted_data;
+  bool need_resume_data;
+  int fetch_data_len;
+  unsigned delta_window_size;
+  bool fetch_body_completed;
+  std::vector<std::pair<std::string, std::string>> headers;
 
-    // Write frame payload
-    // It could be empty (e.g. SETTINGS frame with ACK flag)
-    if (ioblock && ioblock->read_avail() > 0) {
-      iobuffer->append_block(this->ioblock.get());
-    }
-  }
+  std::string url;
+  std::string host;
+  std::string path;
+  std::string scheme;
+  std::string method;
+  std::string version;
 
-  int64_t
-  size()
-  {
-    if (ioblock) {
-      return PROXYPROTOCOL_FRAME_HEADER_LEN + ioblock->size();
-    } else {
-      return PROXYPROTOCOL_FRAME_HEADER_LEN;
-    }
-  }
-
-  // noncopyable
-  ProxyProtocolFrame(ProxyProtocolFrame &) = delete;
-  ProxyProtocolFrame &operator=(const ProxyProtocolFrame &) = delete;
-
-private:
-  ProxyProtocolFrameHeader hdr;       // frame header
-  Ptr<IOBufferBlock> ioblock; // frame payload
-  IOBufferReader *ioreader;
+  MD5_CTX recv_md5;
 };
 
-class ProxyProtocolClientSession : public ProxyClientSession
+
+// class ProxyProtocolClientSession : public Continuation, public PluginIdentity
+class ProxyProtocolClientSession : public ProxyClientSession, public PluginIdentity
 {
 public:
   typedef ProxyClientSession super; ///< Parent type.
   typedef int (ProxyProtocolClientSession::*SessionHandler)(int, void *);
+//  ProxyProtocolClientSession()
+//    : sm_id(0),
+//      //version(spdy::SessionVersion::SESSION_VERSION_3_1),
+//      total_size(0),
+//      start_time(0),
+//      vc(NULL),
+//      req_buffer(NULL),
+//      req_reader(NULL),
+//      resp_buffer(NULL),
+//      resp_reader(NULL),
+//      read_vio(NULL),
+//      write_vio(NULL),
+//      event(0)
+//      // session(NULL)
+//  {
+//  }
 
-  ProxyProtocolClientSession();
-
-  // Implement ProxyClientSession interface.
-  void start() override;
+  void init(NetVConnection *netvc);
+  void clear();
   void destroy() override;
   void free() override;
-  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
+  void start() override;
 
-  bool
-  ready_to_free() const
-  {
-    return kill_me;
-  }
+  static ProxyProtocolClientSession *alloc();
 
   // Implement VConnection interface.
   VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0) override;
@@ -197,6 +159,92 @@ public:
     }
   }
 
+  //void
+  //start()
+  //{
+  //  ink_release_assert(false);
+  //}
+
+  //void do_io_close(int lerrno = -1);
+  //void
+  //do_io_shutdown(ShutdownHowTo_t howto)
+  //{
+  //  ink_release_assert(false);
+  //}
+  //NetVConnection *
+  //get_netvc() const
+  //{
+  //  return vc;
+  //}
+  //void
+  //release_netvc()
+  //{
+  //  vc = NULL;
+  //}
+  
+  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
+
+  int
+  get_transact_count() const override
+  {
+    return this->transact_count;
+  }
+  void
+  release(ProxyClientTransaction *) override
+  { /* TBD */
+  }
+
+  const char *
+  get_protocol_string() const override
+  {
+    return "http/2";
+  }
+
+  int64_t sm_id;
+  //spdy::SessionVersion version;
+  uint64_t total_size;
+  TSHRTime start_time;
+
+  NetVConnection *vc;
+
+  TSIOBuffer req_buffer;
+  TSIOBufferReader req_reader;
+
+  TSIOBuffer resp_buffer;
+  TSIOBufferReader resp_reader;
+
+  VIO *read_vio;
+  VIO *write_vio;
+
+  int event;
+  //spdylay_session *session;
+  int transact_count;
+
+  //Map<int32_t, ProxyProtocolRequest *> req_map;
+
+  ////virtual char const *getPluginTag() const;
+  ////virtual int64_t getPluginId() const;
+
+  //ProxyProtocolRequest *
+  //find_request(int streamId)
+  //{
+  //  Map<int32_t, ProxyProtocolRequest *>::iterator iter = this->req_map.find(streamId);
+  //  return ((iter == this->req_map.end()) ? NULL : iter->second);
+  //}
+
+  //void
+  //cleanup_request(int streamId)
+  //{
+  //  ProxyProtocolRequest *req = this->find_request(streamId);
+  //  if (req) {
+  //    req->destroy();
+  //    this->req_map.erase(streamId);
+  //  }
+  //  if (req_map.empty() == true) {
+  //    vc->add_to_keep_alive_queue();
+  //  }
+  //}
+
   sockaddr const *
   get_client_addr() override
   {
@@ -209,151 +257,24 @@ public:
     return client_vc ? client_vc->get_local_addr() : &cached_local_addr.sa;
   }
 
-  void
-  write_reenable()
-  {
-    write_vio->reenable();
-  }
-
-  void set_upgrade_context(HTTPHdr *h);
-
-  const ProxyProtocolUpgradeContext &
-  get_upgrade_context() const
-  {
-    return upgrade_context;
-  }
-
-  int
-  get_transact_count() const override
-  {
-    return connection_state.get_stream_requests();
-  }
-
-  void
-  release(ProxyClientTransaction *trans) override
-  {
-  }
-
-  ProxyProtocolConnectionState connection_state;
-  void
-  set_dying_event(int event)
-  {
-    dying_event = event;
-  }
-
-  int
-  get_dying_event() const
-  {
-    return dying_event;
-  }
-
-  bool
-  is_recursing() const
-  {
-    return recursion > 0;
-  }
-
-  const char *
-  get_protocol_string() const override
-  {
-    return "http/2";
-  }
-
-  virtual int
-  populate_protocol(ts::string_view *result, int size) const override
-  {
-    int retval = 0;
-    if (size > retval) {
-      result[retval++] = IP_PROTO_TAG_PROXY;
-      if (size > retval) {
-        retval += super::populate_protocol(result + retval, size - retval);
-      }
-    }
-    return retval;
-  }
-
-  virtual const char *
-  protocol_contains(ts::string_view prefix) const override
-  {
-    const char *retval = nullptr;
-
-    if (prefix.size() <= IP_PROTO_TAG_PROXY.size() && strncmp(IP_PROTO_TAG_PROXY.data(), prefix.data(), prefix.size()) == 0) {
-      retval = IP_PROTO_TAG_PROXY.data();
-    } else {
-      retval = super::protocol_contains(prefix);
-    }
-    return retval;
-  }
-
-  void set_half_close_local_flag(bool flag);
-  bool
-  get_half_close_local_flag() const
-  {
-    return half_close_local;
-  }
-
-  bool
-  is_url_pushed(const char *url, int url_len)
-  {
-    char *dup_url            = ats_strndup(url, url_len);
-    InkHashTableEntry *entry = ink_hash_table_lookup_entry(h2_pushed_urls, dup_url);
-    ats_free(dup_url);
-    return entry != nullptr;
-  }
-
-  void
-  add_url_to_pushed_table(const char *url, int url_len)
-  {
-    if (h2_pushed_urls_size < ProxyProtocol::push_diary_size) {
-      char *dup_url = ats_strndup(url, url_len);
-      ink_hash_table_insert(h2_pushed_urls, dup_url, nullptr);
-      h2_pushed_urls_size++;
-      ats_free(dup_url);
-    }
-  }
-
-  // noncopyable
-  ProxyProtocolClientSession(ProxyProtocolClientSession &) = delete;
-  ProxyProtocolClientSession &operator=(const ProxyProtocolClientSession &) = delete;
-
 private:
   int main_event_handler(int, void *);
-
   int state_read_connection_preface(int, void *);
-  int state_start_frame_read(int, void *);
-  int do_start_frame_read(ProxyProtocolErrorCode &ret_error);
-  int state_complete_frame_read(int, void *);
-  int do_complete_frame_read();
-  // state_start_frame_read and state_complete_frame_read are set up as
-  // event handler.  Both feed into state_process_frame_read which may iterate
-  // if there are multiple frames ready on the wire
-  int state_process_frame_read(int event, VIO *vio, bool inside_frame);
 
-  int64_t total_write_len        = 0;
-  SessionHandler session_handler = nullptr;
   NetVConnection *client_vc      = nullptr;
   MIOBuffer *read_buffer         = nullptr;
   IOBufferReader *sm_reader      = nullptr;
   MIOBuffer *write_buffer        = nullptr;
   IOBufferReader *sm_writer      = nullptr;
-  ProxyProtocolFrameHeader current_hdr   = {0, 0, 0, 0};
+  SessionHandler session_handler = nullptr;
 
   IpEndpoint cached_client_addr;
   IpEndpoint cached_local_addr;
 
-  // For Upgrade: h2c
-  ProxyProtocolUpgradeContext upgrade_context;
-
-  VIO *write_vio        = nullptr;
-  int dying_event       = 0;
-  bool kill_me          = false;
-  bool half_close_local = false;
-  int recursion         = 0;
-
-  InkHashTable *h2_pushed_urls = nullptr;
-  uint32_t h2_pushed_urls_size = 0;
+  int state_session_start(int event, void *edata);
+  int state_session_readwrite(int event, void *edata);
 };
 
-extern ClassAllocator<ProxyProtocolClientSession> proxyProtocolClientSessionAllocator;
+extern ClassAllocator<ProxyProtocolClientSession> proxyprotocolClientSessionAllocator;
 
-#endif // __PROXYPROTOCOL_CLIENT_SESSION_H__
+#endif

@@ -131,6 +131,7 @@ public:
   ProxyAllocator sslNetVCAllocator;
   ProxyAllocator http1ClientSessionAllocator;
   ProxyAllocator http2ClientSessionAllocator;
+  ProxyAllocator proxyprotocolClientSessionAllocator;
   ProxyAllocator http2StreamAllocator;
   ProxyAllocator httpServerSessionAllocator;
   ProxyAllocator hdrHeapAllocator;
