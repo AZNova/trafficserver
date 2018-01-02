@@ -81,3 +81,44 @@ NetVConnection::get_local_port()
 {
   return ats_ip_port_host_order(this->get_local_addr());
 }
+
+TS_INLINE sockaddr const *
+NetVConnection::get_proxy_protocol_addr(ProxyProtocolData_t src_or_dst)
+{
+  if (src_or_dst == PROXY_PROTO_SRC) {
+    if ((ats_is_ip(&pp_info.src_addr) && ats_ip_port_cast(&pp_info.src_addr))
+        || (ats_is_ip4(&pp_info.src_addr) && INADDR_ANY != ats_ip4_addr_cast(&pp_info.src_addr)) // IPv4
+        || (ats_is_ip6(&pp_info.src_addr) && !IN6_IS_ADDR_UNSPECIFIED(&pp_info.src_addr.sin6.sin6_addr))) {
+    }
+    return &pp_info.src_addr.sa;
+  } else {
+    if ((ats_is_ip(&pp_info.dst_addr) && ats_ip_port_cast(&pp_info.dst_addr))
+        || (ats_is_ip4(&pp_info.dst_addr) && INADDR_ANY != ats_ip4_addr_cast(&pp_info.dst_addr)) // IPv4
+        || (ats_is_ip6(&pp_info.dst_addr) && !IN6_IS_ADDR_UNSPECIFIED(&pp_info.dst_addr.sin6.sin6_addr))) {
+    }
+    return &pp_info.dst_addr.sa;
+  }
+}
+
+TS_INLINE int
+NetVConnection::set_proxy_protocol_addr(ProxyProtocolData_t src_or_dst, ts::string_view &ip_port_str)
+{
+  int ret = -1;
+  if (src_or_dst == PROXY_PROTO_SRC) {
+    ret = ats_ip_pton(ip_port_str, &pp_info.src_addr);
+  } else {
+    ret = ats_ip_pton(ip_port_str, &pp_info.dst_addr);
+  }
+//  ats_ip_copy(&remote_addr, &con.addr);
+  return ret;
+}
+
+//TS_INLINE void
+//NetVConnection::set_proxy_protocol_addr()
+//{
+//  int local_sa_size = sizeof(local_addr);
+//  // This call will fail if fd is closed already. That is ok, because the
+//  // `local_addr` is checked within get_local_addr() and the `got_local_addr`
+//  // is set only with a valid `local_addr`.
+//  ATS_UNUSED_RETURN(safe_getsockname(con.fd, &local_addr.sa, &local_sa_size));
+//}
