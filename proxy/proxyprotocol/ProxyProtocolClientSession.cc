@@ -31,7 +31,7 @@
              HttpDebugNames::get_event_name(event));                                         \
   } while (0)
 
-#define DebugProxyProtocolSsn(fmt, ...) DebugSsn(this, "proxyprotocol_cs", "[%" PRId64 "] " fmt, this->connection_id(), ##__VA_ARGS__)
+#define ProxyProtocolSsnDebug(fmt, ...) SsnDebug(this, "proxyprotocol_cs", "[%" PRId64 "] " fmt, this->connection_id(), ##__VA_ARGS__)
 
 #define PROXYPROTOCOL_SET_SESSION_HANDLER(handler) \
   do {                                     \
@@ -74,7 +74,7 @@ ProxyProtocolClientSession::destroy()
 {
   if (!in_destroy) {
     in_destroy = true;
-    DebugProxyProtocolSsn("session destroy");
+    ProxyProtocolSsnDebug("session destroy");
     // Let everyone know we are going down
     do_api_callout(TS_HTTP_SSN_CLOSE_HOOK);
   }
@@ -101,7 +101,7 @@ ProxyProtocolClientSession::free()
   //  return;
   //}
 
-  DebugProxyProtocolSsn("session free");
+  ProxyProtocolSsnDebug("session free");
 
   //PROXYPROTOCOL_DECREMENT_THREAD_DYN_STAT(PROXYPROTOCOL_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
 
@@ -192,7 +192,7 @@ ProxyProtocolClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *io
   //this->state_session_start(ET_NET, NULL);
   //MUTEX_UNTAKE_LOCK(this->mutex, thread);
 
-  DebugProxyProtocolSsn("session born, netvc %p", this->client_vc);
+  ProxyProtocolSsnDebug("session born, netvc %p", this->client_vc);
 
 }
 
@@ -260,7 +260,7 @@ ProxyProtocolClientSession::do_io_shutdown(ShutdownHowTo_t howto)
 void
 ProxyProtocolClientSession::do_io_close(int alerrno)
 {
-  DebugProxyProtocolSsn("session closed");
+  ProxyProtocolSsnDebug("session closed");
 
   //ink_assert(this->mutex->thread_holding == this_ethread());
   //send_connection_event(&this->connection_state, PROXYPROTOCOL_SESSION_EVENT_FINI, this);
@@ -292,7 +292,7 @@ ProxyProtocolClientSession::reenable(VIO *vio)
 //ProxyProtocolClientSession::set_half_close_local_flag(bool flag)
 //{
 //  if (!half_close_local && flag) {
-//    DebugProxyProtocolSsn("session half-close local");
+//    ProxyProtocolSsnDebug("session half-close local");
 //  }
 //  half_close_local = flag;
 //}
@@ -348,7 +348,7 @@ ProxyProtocolClientSession::main_event_handler(int event, void *edata)
     break;
 
   default:
-    DebugProxyProtocolSsn("unexpected event=%d edata=%p", event, edata);
+    ProxyProtocolSsnDebug("unexpected event=%d edata=%p", event, edata);
     ink_release_assert(0);
     retval = 0;
     break;
@@ -376,12 +376,12 @@ ProxyProtocolClientSession::main_event_handler(int event, void *edata)
 //    ink_release_assert(nbytes == PROXY_V1_CONNECTION_PREFACE_LEN);
 //
 //    if (memcmp(PROXY_V1_CONNECTION_PREFACE, buf, nbytes) != 0) {
-//      DebugProxyProtocolSsn("invalid connection preface");
+//      ProxyProtocolSsnDebug("invalid connection preface");
 //      this->do_io_close();
 //      return 0;
 //    }
 //
-//    DebugProxyProtocolSsn("received connection preface");
+//    ProxyProtocolSsnDebug("received connection preface");
 //    this->sm_reader->consume(nbytes);
 //    PROXYPROTOCOL_SET_SESSION_HANDLER(&ProxyProtocolClientSession::state_start_frame_read);
 //
@@ -424,16 +424,16 @@ ProxyProtocolClientSession::main_event_handler(int event, void *edata)
 //  uint8_t buf[PROXYPROTOCOL_FRAME_HEADER_LEN];
 //  unsigned nbytes;
 //
-//  DebugProxyProtocolSsn("receiving frame header");
+//  ProxyProtocolSsnDebug("receiving frame header");
 //  nbytes = copy_from_buffer_reader(buf, this->sm_reader, sizeof(buf));
 //
 //  if (!proxyprotocol_parse_frame_header(make_iovec(buf), this->current_hdr)) {
-//    DebugProxyProtocolSsn("frame header parse failure");
+//    ProxyProtocolSsnDebug("frame header parse failure");
 //    this->do_io_close();
 //    return -1;
 //  }
 //
-//  DebugProxyProtocolSsn("frame header length=%u, type=%u, flags=0x%x, streamid=%u", (unsigned)this->current_hdr.length,
+//  ProxyProtocolSsnDebug("frame header length=%u, type=%u, flags=0x%x, streamid=%u", (unsigned)this->current_hdr.length,
 //                (unsigned)this->current_hdr.type, (unsigned)this->current_hdr.flags, this->current_hdr.streamid);
 //
 //  this->sm_reader->consume(nbytes);
@@ -470,7 +470,7 @@ ProxyProtocolClientSession::main_event_handler(int event, void *edata)
 //    vio->reenable();
 //    return 0;
 //  }
-//  DebugProxyProtocolSsn("completed frame read, %" PRId64 " bytes available", this->sm_reader->read_avail());
+//  ProxyProtocolSsnDebug("completed frame read, %" PRId64 " bytes available", this->sm_reader->read_avail());
 //
 //  return state_process_frame_read(event, vio, true);
 //}
