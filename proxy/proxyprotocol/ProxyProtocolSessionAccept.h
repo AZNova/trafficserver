@@ -27,31 +27,59 @@
 #include "ts/ink_platform.h"
 #include "I_Net.h"
 
-// XXX HttpSessionAccept::Options needs to be refactored and separated from HttpSessionAccept so that
-// it can generically apply to all protocol implementations.
 #include "http/HttpSessionAccept.h"
+#include "P_SSLNextProtocolAccept.h"
 
-// HTTP/2 Session Accept.
-//
-// HTTP/2 needs to be explicitly enabled on a server port. The syntax is different for SSL and raw
-// ports. There's currently no support for the HTTP/1.1 upgrade path. The example below configures
-// HTTP/2 on port 80 and port 443 (with TLS).
-//
-// CONFIG proxy.config.http.server_ports STRING 80:proto=http2 443:ssl:proto=h2-12
+//struct ProxyProtocolSessionAccept : public SessionAccept {
+struct ProxyProtocolSessionAccept : public SSLNextProtocolAccept 
+{
+  //ProxyProtocolSessionAccept(Continuation *, bool);
+  ProxyProtocolSessionAccept(Continuation *ep, bool transparent_passthrough)
+    : SSLNextProtocolAccept(ep, transparent_passthrough), buffer(new_empty_MIOBuffer()), endpoint(ep), 
+      transparent_passthrough(transparent_passthrough)
+    
+  {
+    this->iobuf  = buffer ? buffer : new_MIOBuffer(buffer_size_index);
+    this->reader = reader ? reader : iobuf->alloc_reader(); // reader must be allocated only on a new MIOBuffer.
+    SET_HANDLER(&ProxyProtocolSessionAccept::mainEvent);
+  }
 
-struct ProxyProtocolSessionAccept : public SessionAccept {
-  explicit ProxyProtocolSessionAccept(const HttpSessionAccept::Options &);
+  //explicit ProxyProtocolSessionAccept(const HttpSessionAccept::Options &);
   ~ProxyProtocolSessionAccept();
 
   bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *);
   int mainEvent(int event, void *netvc);
 
+  bool registerEndpoint(const char *protocol, Continuation *handler);
+  //void registerEndpoint(SessionAccept *ap);
+
   // noncopyable
   ProxyProtocolSessionAccept(const ProxyProtocolSessionAccept &) = delete;
   ProxyProtocolSessionAccept &operator=(const ProxyProtocolSessionAccept &) = delete;
 
+  //IOBufferReader *reader;
+
+  SSLNextProtocolAccept *ssl_next;
+  SSLNextProtocolSet *protoset;
+
+  bool
+  getTransparentPassthrough()
+  {
+    return transparent_passthrough;
+  }
+
 private:
+  static const unsigned buffer_size_index = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
+  MIOBuffer *buffer;
+  MIOBuffer *iobuf;
+  IOBufferReader *reader;
+  //Continuation *endpoint;
+  //  this->iobuf  = buffer ? buffer : new_MIOBuffer(buffer_size_index);
+  //  this->reader = reader ? reader : iobuf->alloc_reader(); // reader must be allocated only on a new MIOBuffer.
   HttpSessionAccept::Options options;
+  //SessionAccept *endpoint;
+  Continuation *endpoint;
+  bool transparent_passthrough;
 };
 
 #endif // __PROXYPROTOCOL_SESSION_ACCEPT_H__
