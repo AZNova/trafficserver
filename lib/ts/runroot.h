@@ -27,9 +27,14 @@
 #pragma once
 
 #include <string>
-
-#define MAX_CWD_LEN 1024
+#include <unordered_map>
 
 std::string check_parent_path(const std::string &path, bool json = false);
 
 void runroot_handler(const char **argv, bool json = false);
+
+// get runroot map from yaml path and prefix
+std::unordered_map<std::string, std::string> runroot_map(std::string &yaml_path, std::string &prefix);
+
+// help check runroot for layout
+std::unordered_map<std::string, std::string> check_runroot();
