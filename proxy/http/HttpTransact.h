@@ -511,6 +511,12 @@ public:
     CACHE_AUTH_SERVE
   };
 
+  enum ProxyProtocolData_t {
+    PROXY_PROTO_UNDEFINED,
+    PROXY_PROTO_SRC,
+    PROXY_PROTO_DST,
+  };
+
   struct State;
   typedef void (*TransactFunc_t)(HttpTransact::State *);
 
@@ -963,6 +969,9 @@ public:
       }
       internal_msg_buffer_size = 0;
     }
+
+    NetVConnection::ProxyProtocol pp_info;
+
   }; // End of State struct.
 
   static void HandleBlindTunnel(State *s);
