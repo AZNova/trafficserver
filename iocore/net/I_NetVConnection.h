@@ -678,6 +678,17 @@ public:
     pp_info.dst_port = val;
   }
 
+  void
+  set_proxy_protocol_version(ProxyProtocolVersion_t ver) {
+    pp_info.proxy_protocol_version = ver;
+  }
+
+  ProxyProtocolVersion_t
+  get_proxy_protocol_version()
+  {
+    return pp_info.proxy_protocol_version;
+  }
+
   sockaddr const *get_proxy_protocol_addr(ProxyProtocolData_t);
 
   sockaddr const *
@@ -704,6 +715,17 @@ public:
     return ats_ip_port_host_order(this->get_proxy_protocol_addr(PROXY_PROTO_DST));
   };
 
+  typedef struct _ProxyProtocol {
+    ProxyProtocolVersion_t proxy_protocol_version   = PROXY_VERSION_UNDEFINED;
+    uint16_t ip_family;
+    IpEndpoint src_addr;
+    uint16_t src_port;
+    IpEndpoint dst_addr;
+    uint16_t dst_port;
+  } ProxyProtocol;
+
+  ProxyProtocol pp_info;
+
 
 protected:
   IpEndpoint local_addr;
@@ -719,17 +741,6 @@ protected:
   int write_buffer_empty_event;
   /// NetVConnection Context.
   NetVConnectionContext_t netvc_context;
-
-  typedef struct _ProxyProtocol {
-    ProxyProtocolVersion_t proxy_protocol_version   = PROXY_VERSION_UNDEFINED;
-    uint16_t ip_family;
-    IpEndpoint src_addr;
-    uint16_t src_port;
-    IpEndpoint dst_addr;
-    uint16_t dst_port;
-  } ProxyProtocol;
-
-  ProxyProtocol pp_info;
 
 };
 
