@@ -126,9 +126,10 @@ proto_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
 
         break;
     }
-    // if we have our all of our fields, we are done here
+    // if we have our all of our fields, set version as a flag, we are done here
     //  otherwise increment our field counter and tok another field
     if (cnt >= 6) {
+      netvc->set_proxy_protocol_version(NetVConnection::PROXY_V1);
       break;
     } else {
       ++cnt;
@@ -285,11 +286,9 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
     }
 
     if (proto_has_proxy_v1(reader, netvc)) {
-      Debug("http", "ioCompletionEvent: protocol hass proxy_v1");
-      //key = PROTO_PROXY_V1;
+      Debug("http", "ioCompletionEvent: protocol has proxy_v1");
     } else if (proto_has_proxy_v2(reader)) {
-      Debug("http", "ioCompletionEvent: protocol hass proxy_v2");
-      //key = PROTO_PROXY_V2;
+      Debug("http", "ioCompletionEvent: protocol has proxy_v2");
     }
 
     if (proto_is_http2(reader)) {
