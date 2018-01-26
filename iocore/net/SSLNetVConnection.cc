@@ -33,9 +33,11 @@
 #include "P_SSLClientUtils.h"
 #include "P_SSLSNI.h"
 #include "HttpTunnel.h"
+#include "proxyprotocol/ProxyProtocol.h"
 
 #include <climits>
 #include <string>
+#include <cstring>
 #include <stdbool.h>
 
 #if !TS_USE_SET_RBIO
@@ -371,6 +373,28 @@ SSLNetVConnection::read_raw_data()
     }
   }
   NET_SUM_DYN_STAT(net_read_bytes_stat, r);
+
+  int64_t nl = 0;
+  char *nlp = nullptr;
+  // Proxy Protocol
+  if (0 == memcmp(PROXY_V1_CONNECTION_PREFACE, buffer, PROXY_V1_CONNECTION_PREFACE_LEN_MIN)){
+	//int64_t cr = 0;
+	nlp = (char *) memchr(buffer, '\n', PROXY_V1_CONNECTION_PREFACE_LEN);
+    if (nlp) {
+      nl = (int64_t) (nlp - buffer);
+      Debug("ssl", "Consuming %lld characters from %p to %p", nl+1, buffer, nlp);
+      //nl = this->handShakeReader->memchr('\n',PROXY_V1_CONNECTION_PREFACE_LEN , 0);
+      char local_buf[256];
+      memcpy(local_buf, buffer, nl+1);
+      memmove(buffer, buffer+nl+1, nl+1);
+	  r -= nl+1;
+      if (r <= 0) {
+        r = -EAGAIN;
+      }
+      this->set_proxy_protocol_src_port(1);
+      proxy_protov1_parse(this, local_buf);
+    }
+  }
 
   if (r > 0) {
     this->handShakeBuffer->fill(r);
