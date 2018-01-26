@@ -27,6 +27,9 @@
 #include "ts/ink_defs.h"
 #include "ts/ink_memory.h"
 #include "P_RecDefs.h"
+#include "P_SSLNextProtocolSet.h"
+
+extern bool proxy_protov1_parse(NetVConnection *, char *);
 
 // Statistics
 enum {
@@ -51,7 +54,6 @@ enum {
 #define PROXY_V1_INCREMENT_THREAD_DYN_STAT(_s, _t) RecIncrRawStat(proxyproto_rsb, _t, (int)_s, 1);
 #define PROXY_V1_DECREMENT_THREAD_DYN_STAT(_s, _t) RecIncrRawStat(proxyproto_rsb, _t, (int)_s, -1);
 #define PROXY_V1_SUM_THREAD_DYN_STAT(_s, _t, _v) RecIncrRawStat(proxyproto_rsb, _t, (int)_s, _v);
-extern RecRawStatBlock *proxyproto_rsb; // Container for statistics.
 
 // http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 
