@@ -37,6 +37,7 @@ libproxyprotocol_a_SOURCES = \
   ProxyProtocolClientSession.h \
   ProxyProtocolSessionAccept.cc \
   ProxyProtocolSessionAccept.h \
+  ProxyProtocol.cc \
   ProxyProtocol.h
 
 #  ProxyProtocolConnectionState.cc 
