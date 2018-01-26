@@ -25,7 +25,8 @@
 #include "I_Machine.h"
 #include "ProtocolProbeSessionAccept.h"
 #include "http2/HTTP2.h"
-#include "ProxyProtocol.h"
+//#include "P_ProxyProtocol.h"
+#include "proxyprotocol/ProxyProtocol.h"
 
 static bool
 proto_is_http2(IOBufferReader *reader)
@@ -45,6 +46,7 @@ proto_is_http2(IOBufferReader *reader)
   ink_assert(nbytes <= (int64_t)HTTP2_CONNECTION_PREFACE_LEN);
   return memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) == 0;
 }
+
 
 static bool
 proto_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
@@ -75,73 +77,8 @@ proto_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
   // Now that we know we have a valid PROXY V1 preface, let's parse the
   // remainder of the header
 
-  std::string src_addr_port;
-  std::string dst_addr_port;
+  return (proxy_protov1_parse(netvc, local_buf));
 
-  char *pch;
-  int cnt = 0;
-  pch = strtok (local_buf," \n\r");
-  while (pch!= NULL) {
-    switch (cnt) {
-      case 0:
-        Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = PREFACE",cnt, pch);
-        break;
-      // After the PROXY, exactly one space followed by the INET protocol family
-      // - TCP4, TCP6 or UNKNOWN
-      case 1:
-        Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = INET Protocol",cnt, pch);
-        break;
-      // Next up is exactly one space and the layer 3 source address
-      // - 255.255.255.255 or ffff:f...f:ffff ffff:f...f:fff
-      case 2:
-        Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Source Address",cnt, pch);
-        //netvc->set_proxy_protocol_src_addr(addr_port);
-        src_addr_port.assign(pch);
-        break;
-      // Next is exactly one space followed by the layer3 destination address
-      // - 255.255.255.255 or ffff:f...f:ffff ffff:f...f:fff
-      case 3:
-        Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Destination Address",cnt, pch);
-        dst_addr_port.assign(pch);
-        break;
-      // Next is exactly one space followed by TCP source port represented as a
-      //   decimal number in the range of [0..65535] inclusive.
-      case 4:
-        Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Source Port",cnt, pch);
-        src_addr_port = src_addr_port + ":" + pch;
-        netvc->set_proxy_protocol_src_addr(ts::string_view(src_addr_port));
-        //netvc->set_proxy_protocol_src_port(1);
-        break;
-      // Next is exactly one space followed by TCP destination port represented as a
-      //   decimal number in the range of [0..65535] inclusive.
-      case 5:
-        Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Destination Port",cnt, pch);
-        dst_addr_port = dst_addr_port + ":" + pch;
-        netvc->set_proxy_protocol_dst_addr(ts::string_view(dst_addr_port));
-        //netvc->set_proxy_protocol_dst_port(2);
-
-        // THIS RIGHT HERE!  Fill in these fields into the netvc and then pull the 
-        // data back out in the add_forwarded header function!
-        // Oh, and do this in the SSL stuff also!
-
-        break;
-    }
-    // if we have our all of our fields, set version as a flag, we are done here
-    //  otherwise increment our field counter and tok another field
-    if (cnt >= 6) {
-      netvc->set_proxy_protocol_version(NetVConnection::PROXY_V1);
-      break;
-    } else {
-      ++cnt;
-      pch = strtok (NULL, " \n\r");
-    }
-  }
-
-  // Can I then stash this data away somewhere in the structure so it can be
-  // retrieved before it gets sent down the stack?
-
-  // Make sure we get the required number of fields
-  return (cnt == 6 ? true : false);
 }
 
 static bool
