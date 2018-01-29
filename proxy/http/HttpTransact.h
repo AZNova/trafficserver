@@ -42,8 +42,6 @@
 #include "UrlMapping.h"
 #include <records/I_RecHttp.h>
 
-#include "congest/Congestion.h"
-
 #define MAX_DNS_LOOKUPS 2
 
 #define HTTP_RELEASE_ASSERT(X) ink_release_assert(X)
@@ -346,7 +344,7 @@ public:
     TOTAL_RESPONSE_ERROR_TYPES
   };
 
-  // Please do not forget to fix TSServerState (ts/ts.h)
+  // Please do not forget to fix TSServerState (ts/apidefs.h.in)
   // in case of any modifications in ServerState_t
   enum ServerState_t {
     STATE_UNDEFINED = 0,
@@ -837,12 +835,7 @@ public:
     UrlMappingContainer url_map;
     host_hdr_info hh_info = {nullptr, 0, 0};
 
-    // congestion control
-    CongestionEntry *pCongestionEntry              = nullptr;
-    StateMachineAction_t congest_saved_next_action = SM_ACTION_UNDEFINED;
-    int congestion_control_crat                    = 0; // 'client retry after'
-    int congestion_congested_or_failed             = 0;
-    int congestion_connection_opened               = 0;
+    int congestion_control_crat = 0; // Client retry after
 
     unsigned int filter_mask = 0;
     char *remap_redirect     = nullptr;
@@ -925,14 +918,6 @@ public:
       cache_info.transform_store.destroy();
       redirect_info.original_url.destroy();
       redirect_info.redirect_url.destroy();
-
-      if (pCongestionEntry) {
-        if (congestion_connection_opened == 1) {
-          pCongestionEntry->connection_closed();
-          congestion_connection_opened = 0;
-        }
-        pCongestionEntry->put(), pCongestionEntry = nullptr;
-      }
 
       url_map.clear();
       arena.reset();

@@ -19,7 +19,7 @@
 include $(top_srcdir)/build/tidy.mk
 
 # Note that hdrs is targeted from ../Makefile.am
-SUBDIRS = congest http http2 proxyprotocol logging config
+SUBDIRS = http http2 proxyprotocol logging config
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -183,7 +183,6 @@ traffic_server_LDADD = \
   http2/libhttp2.a \
   proxyprotocol/libproxyprotocol.a \
   http/remap/libhttp_remap.a \
-  congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
   hdrs/libhdrs.a  \
