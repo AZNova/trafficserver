@@ -602,6 +602,9 @@ public:
   /** Set remote sock addr struct. */
   virtual void set_remote_addr() = 0;
 
+  /** Set remote sock addr struct. */
+  virtual void set_remote_addr(const sockaddr *) = 0;
+
   // for InkAPI
   bool
   get_is_internal_request() const
@@ -726,7 +729,6 @@ public:
 
   ProxyProtocol pp_info;
 
-
 protected:
   IpEndpoint local_addr;
   IpEndpoint remote_addr;
@@ -741,7 +743,6 @@ protected:
   int write_buffer_empty_event;
   /// NetVConnection Context.
   NetVConnectionContext_t netvc_context;
-
 };
 
 inline NetVConnection::NetVConnection()
