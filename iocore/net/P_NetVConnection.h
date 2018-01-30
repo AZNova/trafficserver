@@ -27,7 +27,11 @@ TS_INLINE sockaddr const *
 NetVConnection::get_remote_addr()
 {
   if (!got_remote_addr) {
-    set_remote_addr();
+    if (pp_info.proxy_protocol_version != PROXY_VERSION_UNDEFINED) {
+      set_remote_addr(get_proxy_protocol_src_addr());
+    } else {
+      set_remote_addr();
+    }
     got_remote_addr = true;
   }
   return &remote_addr.sa;
@@ -113,12 +117,3 @@ NetVConnection::set_proxy_protocol_addr(ProxyProtocolData_t src_or_dst, ts::stri
   return ret;
 }
 
-//TS_INLINE void
-//NetVConnection::set_proxy_protocol_addr()
-//{
-//  int local_sa_size = sizeof(local_addr);
-//  // This call will fail if fd is closed already. That is ok, because the
-//  // `local_addr` is checked within get_local_addr() and the `got_local_addr`
-//  // is set only with a valid `local_addr`.
-//  ATS_UNUSED_RETURN(safe_getsockname(con.fd, &local_addr.sa, &local_sa_size));
-//}
