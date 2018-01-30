@@ -36,8 +36,6 @@
 #include "HttpTunnel.h"
 #include "ts/Tokenizer.h"
 #include "P_SSLNextProtocolAccept.h"
-#include "proxyprotocol/ProxyProtocolSessionAccept.h"
-#include "proxyprotocol/ProxyProtocol.h"
 #include "ProtocolProbeSessionAccept.h"
 #include "http2/Http2SessionAccept.h"
 #include "HttpConnectionCount.h"
@@ -179,10 +177,9 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
 
   // XXX the protocol probe should be a configuration option.
 
-  ProtocolProbeSessionAccept *probe  = new ProtocolProbeSessionAccept();
-  HttpSessionAccept *http            = nullptr; // don't allocate this unless it will be used.
-  probe->proxyPort                   = &port;
-  ProxyProtocolSessionAccept *pp_acc = nullptr;
+  ProtocolProbeSessionAccept *probe = new ProtocolProbeSessionAccept();
+  HttpSessionAccept *http           = nullptr; // don't allocate this unless it will be used.
+  probe->proxyPort                  = &port;
 
   if (port.m_session_protocol_preference.intersects(HTTP_PROTOCOL_SET)) {
     http = new HttpSessionAccept(accept_opt);
@@ -192,14 +189,6 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
   if (port.m_session_protocol_preference.intersects(HTTP2_PROTOCOL_SET)) {
     probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_HTTP2, new Http2SessionAccept(accept_opt));
   }
-
-//  if (port.m_session_protocol_preference.intersects(PROXY_V1_PROTOCOL_SET)) {
-//    probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_PROXY_V1, new ProxyProtocolSessionAccept(accept_opt));
-//  }
-//
-//  if (port.m_session_protocol_preference.intersects(PROXY_V2_PROTOCOL_SET)) {
-//    probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_PROXY_V2, new ProxyProtocolSessionAccept(accept_opt));
-//  }
 
   if (port.isSSL()) {
     SSLNextProtocolAccept *ssl = new SSLNextProtocolAccept(probe, port.m_transparent_passthrough);
@@ -227,32 +216,10 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
       ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_2_0, acc);
     }
 
-    //  I need to set a next accessor (yet to be defined in ProxyProtocolSessionAccept -
-    //  like how to ssl_plugin_acceptors work, but not a list, just a single) here
-    //  to the ssl struct that was just built.  Need to figure out how to get the
-    //  ProxyProtocolSessionAccept::accept fired off before the ssl::accept
-    //
-    // PROXY Protocol V1
-    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_PROXY_V1)) {
-      pp_acc = new ProxyProtocolSessionAccept(probe, port.m_transparent_passthrough);
-      //pp_acc = new ProxyProtocolSessionAccept(accept_opt);
-      pp_acc->registerEndpoint(TS_ALPN_PROTOCOL_PROXY_V1, pp_acc);
-      //pp_acc->registerEndpoint(pp_acc);
-      pp_acc->ssl_next = ssl;
-      pp_acc->protoset = ssl->getProtoSet();
-    } else if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_PROXY_V2)) {
-    // PROXY Protocol V2
-      pp_acc = new ProxyProtocolSessionAccept(probe, port.m_transparent_passthrough);
-      //pp_acc = new ProxyProtocolSessionAccept(accept_opt);
-      pp_acc->registerEndpoint(TS_ALPN_PROTOCOL_PROXY_V1, pp_acc);
-      //pp_acc->registerEndpoint(pp_acc);
-      pp_acc->ssl_next = ssl;
-    }
-
     SCOPED_MUTEX_LOCK(lock, ssl_plugin_mutex, this_ethread());
     ssl_plugin_acceptors.push(ssl);
     ssl->proxyPort   = &port;
-    pp_acc ? acceptor._accept = pp_acc : acceptor._accept = ssl;
+    acceptor._accept = ssl;
   } else {
     acceptor._accept = probe;
   }

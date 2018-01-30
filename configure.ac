@@ -2047,7 +2047,6 @@ AC_CONFIG_FILES([
   proxy/http/Makefile
   proxy/http/remap/Makefile
   proxy/http2/Makefile
-  proxy/proxyprotocol/Makefile
   proxy/logging/Makefile
   proxy/shared/Makefile
   rc/Makefile
