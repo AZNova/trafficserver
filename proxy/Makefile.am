@@ -19,7 +19,7 @@
 include $(top_srcdir)/build/tidy.mk
 
 # Note that hdrs is targeted from ../Makefile.am
-SUBDIRS = http http2 proxyprotocol logging config
+SUBDIRS = http http2 logging config
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -35,7 +35,6 @@ AM_CPPFLAGS += \
   -I$(abs_top_srcdir)/lib/records \
   -I$(abs_srcdir)/http \
   -I$(abs_srcdir)/http2 \
-  -I$(abs_srcdir)/proxyprotocol \
   -I$(abs_srcdir)/logging \
   -I$(abs_srcdir)/http/remap  \
   -I$(abs_srcdir)/hdrs \
@@ -162,6 +161,8 @@ traffic_server_SOURCES = \
   ProxyClientSession.h \
   ProxyClientTransaction.cc \
   ProxyClientTransaction.h \
+  ProxyProtocol.cc \
+  ProxyProtocol.h \
   ReverseProxy.cc \
   ReverseProxy.h \
   SocksProxy.cc \
@@ -181,7 +182,6 @@ endif
 traffic_server_LDADD = \
   http/libhttp.a \
   http2/libhttp2.a \
-  proxyprotocol/libproxyprotocol.a \
   http/remap/libhttp_remap.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
