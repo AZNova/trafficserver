@@ -40,19 +40,13 @@ const char *const TS_ALPN_PROTOCOL_HTTP_0_9 = IP_PROTO_TAG_HTTP_0_9.data();
 const char *const TS_ALPN_PROTOCOL_HTTP_1_0 = IP_PROTO_TAG_HTTP_1_0.data();
 const char *const TS_ALPN_PROTOCOL_HTTP_1_1 = IP_PROTO_TAG_HTTP_1_1.data();
 const char *const TS_ALPN_PROTOCOL_HTTP_2_0 = IP_PROTO_TAG_HTTP_2_0.data();
-const char *const TS_ALPN_PROTOCOL_PROXY_V1 = IP_PROTO_TAG_PROXY_V1.data();
-const char *const TS_ALPN_PROTOCOL_PROXY_V2 = IP_PROTO_TAG_PROXY_V2.data();
 
 const char *const TS_ALPN_PROTOCOL_GROUP_HTTP  = "http";
 const char *const TS_ALPN_PROTOCOL_GROUP_HTTP2 = "http2";
-const char *const TS_ALPN_PROTOCOL_GROUP_PROXY_V1 = "proxyV1";
-const char *const TS_ALPN_PROTOCOL_GROUP_PROXY_V2 = "proxyV2";
 
 const char *const TS_PROTO_TAG_HTTP_1_0 = TS_ALPN_PROTOCOL_HTTP_1_0;
 const char *const TS_PROTO_TAG_HTTP_1_1 = TS_ALPN_PROTOCOL_HTTP_1_1;
 const char *const TS_PROTO_TAG_HTTP_2_0 = TS_ALPN_PROTOCOL_HTTP_2_0;
-const char *const TS_PROTO_TAG_PROXY_V1 = TS_ALPN_PROTOCOL_PROXY_V1;
-const char *const TS_PROTO_TAG_PROXY_V2 = TS_ALPN_PROTOCOL_PROXY_V2;
 const char *const TS_PROTO_TAG_TLS_1_3  = IP_PROTO_TAG_TLS_1_3.data();
 const char *const TS_PROTO_TAG_TLS_1_2  = IP_PROTO_TAG_TLS_1_2.data();
 const char *const TS_PROTO_TAG_TLS_1_1  = IP_PROTO_TAG_TLS_1_1.data();
@@ -69,14 +63,10 @@ int TS_ALPN_PROTOCOL_INDEX_HTTP_0_9 = SessionProtocolNameRegistry::INVALID;
 int TS_ALPN_PROTOCOL_INDEX_HTTP_1_0 = SessionProtocolNameRegistry::INVALID;
 int TS_ALPN_PROTOCOL_INDEX_HTTP_1_1 = SessionProtocolNameRegistry::INVALID;
 int TS_ALPN_PROTOCOL_INDEX_HTTP_2_0 = SessionProtocolNameRegistry::INVALID;
-int TS_ALPN_PROTOCOL_INDEX_PROXY_V1 = SessionProtocolNameRegistry::INVALID;
-int TS_ALPN_PROTOCOL_INDEX_PROXY_V2 = SessionProtocolNameRegistry::INVALID;
 
 // Predefined protocol sets for ease of use.
 SessionProtocolSet HTTP_PROTOCOL_SET;
 SessionProtocolSet HTTP2_PROTOCOL_SET;
-SessionProtocolSet PROXY_V1_PROTOCOL_SET;
-SessionProtocolSet PROXY_V2_PROTOCOL_SET;
 SessionProtocolSet DEFAULT_NON_TLS_SESSION_PROTOCOL_SET;
 SessionProtocolSet DEFAULT_TLS_SESSION_PROTOCOL_SET;
 
@@ -137,8 +127,6 @@ const char *const HttpProxyPort::OPT_TRANSPARENT_OUTBOUND    = "tr-out";
 const char *const HttpProxyPort::OPT_TRANSPARENT_FULL        = "tr-full";
 const char *const HttpProxyPort::OPT_TRANSPARENT_PASSTHROUGH = "tr-pass";
 const char *const HttpProxyPort::OPT_SSL                     = "ssl";
-const char *const HttpProxyPort::OPT_PROXY_V1                = "proxyv1";
-const char *const HttpProxyPort::OPT_PROXY_V2                = "proxyv2";
 const char *const HttpProxyPort::OPT_PLUGIN                  = "plugin";
 const char *const HttpProxyPort::OPT_BLIND_TUNNEL            = "blind";
 const char *const HttpProxyPort::OPT_COMPRESSED              = "compressed";
@@ -350,10 +338,6 @@ HttpProxyPort::processOptions(const char *opts)
       af_set_p = true;
     } else if (0 == strcasecmp(OPT_SSL, item)) {
       m_type = TRANSPORT_SSL;
-    } else if (0 == strcasecmp(OPT_PROXY_V1, item)) {
-      m_type = TRANSPORT_PROXY_V1;
-    } else if (0 == strcasecmp(OPT_PROXY_V2, item)) {
-      m_type = TRANSPORT_PROXY_V2;
     } else if (0 == strcasecmp(OPT_PLUGIN, item)) {
       m_type = TRANSPORT_PLUGIN;
     } else if (0 == strcasecmp(OPT_TRANSPARENT_INBOUND, item)) {
@@ -462,10 +446,6 @@ SessionProtocolNameRegistry::markIn(const char *value, SessionProtocolSet &sp_se
       sp_set.markIn(HTTP_PROTOCOL_SET);
     } else if (0 == strcasecmp(elt, TS_ALPN_PROTOCOL_GROUP_HTTP2)) {
       sp_set.markIn(HTTP2_PROTOCOL_SET);
-    } else if (0 == strcasecmp(elt, TS_ALPN_PROTOCOL_GROUP_PROXY_V1)) {
-      sp_set.markIn(PROXY_V1_PROTOCOL_SET);
-    } else if (0 == strcasecmp(elt, TS_ALPN_PROTOCOL_GROUP_PROXY_V2)) {
-      sp_set.markIn(PROXY_V2_PROTOCOL_SET);
     } else { // user defined - register and mark.
       int idx = globalSessionProtocolNameRegistry.toIndex(elt);
       sp_set.markIn(idx);
@@ -545,10 +525,6 @@ HttpProxyPort::print(char *out, size_t n)
     zret += snprintf(out + zret, n - zret, ":%s", OPT_BLIND_TUNNEL);
   } else if (TRANSPORT_SSL == m_type) {
     zret += snprintf(out + zret, n - zret, ":%s", OPT_SSL);
-  } else if (TRANSPORT_PROXY_V1 == m_type) {
-    zret += snprintf(out + zret, n - zret, ":%s", OPT_PROXY_V1);
-  } else if (TRANSPORT_PROXY_V2 == m_type) {
-    zret += snprintf(out + zret, n - zret, ":%s", OPT_PROXY_V2);
   } else if (TRANSPORT_PLUGIN == m_type) {
     zret += snprintf(out + zret, n - zret, ":%s", OPT_PLUGIN);
   } else if (TRANSPORT_COMPRESSED == m_type) {
@@ -596,13 +572,6 @@ HttpProxyPort::print(char *out, size_t n)
     sp_set.markOut(HTTP_PROTOCOL_SET);
     need_colon_p = false;
   }
-
-
-
-  // RIGHT HERE!!!
-
-
-
   if (sp_set.contains(HTTP2_PROTOCOL_SET)) {
     if (need_colon_p) {
       zret += snprintf(out + zret, n - zret, ":%s=", OPT_PROTO_PREFIX);
@@ -652,22 +621,14 @@ ts_session_protocol_well_known_name_indices_init()
   TS_ALPN_PROTOCOL_INDEX_HTTP_1_0 = globalSessionProtocolNameRegistry.toIndexConst(TS_ALPN_PROTOCOL_HTTP_1_0);
   TS_ALPN_PROTOCOL_INDEX_HTTP_1_1 = globalSessionProtocolNameRegistry.toIndexConst(TS_ALPN_PROTOCOL_HTTP_1_1);
   TS_ALPN_PROTOCOL_INDEX_HTTP_2_0 = globalSessionProtocolNameRegistry.toIndexConst(TS_ALPN_PROTOCOL_HTTP_2_0);
-  TS_ALPN_PROTOCOL_INDEX_PROXY_V1 = globalSessionProtocolNameRegistry.toIndexConst(TS_ALPN_PROTOCOL_PROXY_V1);
-  TS_ALPN_PROTOCOL_INDEX_PROXY_V2 = globalSessionProtocolNameRegistry.toIndexConst(TS_ALPN_PROTOCOL_PROXY_V2);
 
   // Now do the predefined protocol sets.
   HTTP_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_HTTP_0_9);
   HTTP_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_HTTP_1_0);
   HTTP_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_HTTP_1_1);
   HTTP2_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_HTTP_2_0);
-  PROXY_V1_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_PROXY_V1);
-  PROXY_V2_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_PROXY_V2);
-
 
   DEFAULT_TLS_SESSION_PROTOCOL_SET.markAllIn();
-  // Disable proxy protocol by default in TLS, explicit configuration to enable
-  DEFAULT_TLS_SESSION_PROTOCOL_SET.markOut(TS_ALPN_PROTOCOL_INDEX_PROXY_V1);
-  DEFAULT_TLS_SESSION_PROTOCOL_SET.markOut(TS_ALPN_PROTOCOL_INDEX_PROXY_V2);
 
   DEFAULT_NON_TLS_SESSION_PROTOCOL_SET = HTTP_PROTOCOL_SET;
 
@@ -675,8 +636,6 @@ ts_session_protocol_well_known_name_indices_init()
   ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_HTTP_1_0, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_HTTP_1_0)));
   ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_HTTP_1_1, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_HTTP_1_1)));
   ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_HTTP_2_0, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_HTTP_2_0)));
-  ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_PROXY_V1, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_PROXY_V1)));
-  ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_PROXY_V2, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_PROXY_V2)));
   ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_TLS_1_3, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_TLS_1_3)));
   ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_TLS_1_2, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_TLS_1_2)));
   ink_hash_table_insert(TSProtoTags, TS_PROTO_TAG_TLS_1_1, reinterpret_cast<void *>(const_cast<char *>(TS_PROTO_TAG_TLS_1_1)));

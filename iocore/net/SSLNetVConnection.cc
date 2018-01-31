@@ -328,23 +328,22 @@ ssl_read_from_net(SSLNetVConnection *sslvc, EThread *lthread, int64_t &ret)
 
 // Proxy Protocol
 bool
-ssl_has_proxy_v1(SSLNetVConnection *sslvc,char *buffer, int64_t *r)
+ssl_has_proxy_v1(SSLNetVConnection *sslvc, char *buffer, int64_t *r)
 {
   int64_t nl = 0;
-  char *nlp = nullptr;
-  if (0 == memcmp(PROXY_V1_CONNECTION_PREFACE, buffer, PROXY_V1_CONNECTION_PREFACE_LEN_MIN)){
-    nlp = (char *) memchr(buffer, '\n', PROXY_V1_CONNECTION_PREFACE_LEN);
+  char *nlp  = nullptr;
+  if (0 == memcmp(PROXY_V1_CONNECTION_PREFACE, buffer, PROXY_V1_CONNECTION_PREFACE_LEN)) {
+    nlp = (char *)memchr(buffer, '\n', PROXY_V1_CONNECTION_HEADER_LEN_MAX);
     if (nlp) {
-      nl = (int64_t) (nlp - buffer);
-      Debug("ssl", "Consuming %lld characters of the PROXY header from %p to %p", nl+1, buffer, nlp);
-      char local_buf[256];
-      memcpy(local_buf, buffer, nl+1);
-      memmove(buffer, buffer+nl+1, nl+1);
-      *r -= nl+1;
+      nl = (int64_t)(nlp - buffer);
+      Debug("ssl", "Consuming %lld characters of the PROXY header from %p to %p", nl + 1, buffer, nlp);
+      char local_buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX + 1];
+      memcpy(local_buf, buffer, nl + 1);
+      memmove(buffer, buffer + nl + 1, nl + 1);
+      *r -= nl + 1;
       if (*r <= 0) {
         *r = -EAGAIN;
       }
-      sslvc->set_proxy_protocol_src_port(1);
       proxy_protov1_parse(sslvc, local_buf);
     }
     return true;

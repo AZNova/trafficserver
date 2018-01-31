@@ -44,8 +44,6 @@ const ts::string_view IP_PROTO_TAG_HTTP_0_9("http/0.9"_sv);
 const ts::string_view IP_PROTO_TAG_HTTP_1_0("http/1.0"_sv);
 const ts::string_view IP_PROTO_TAG_HTTP_1_1("http/1.1"_sv);
 const ts::string_view IP_PROTO_TAG_HTTP_2_0("h2"_sv); // HTTP/2 over TLS
-const ts::string_view IP_PROTO_TAG_PROXY_V1("PROXY"_sv); // PROXY v1 Protocol
-const ts::string_view IP_PROTO_TAG_PROXY_V2("Some binary signature - figure this out laster"_sv); // PROXY v2 Protocol
 
 uint32_t
 ink_inet_addr(const char *s)

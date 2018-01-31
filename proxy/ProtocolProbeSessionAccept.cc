@@ -46,11 +46,10 @@ proto_is_http2(IOBufferReader *reader)
   return memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) == 0;
 }
 
-
 static bool
 proto_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
 {
-  char buf[PROXY_V1_CONNECTION_PREFACE_LEN];
+  char buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX];
   char *end;
   ptrdiff_t nbytes;
 
@@ -58,20 +57,19 @@ proto_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
   nbytes = end - buf;
 
   // Client must send at least 4 bytes to get a reasonable match.
-  if (nbytes < MIN_V1_HDR_LEN) {
+  if (nbytes < (long)PROXY_V1_CONNECTION_HEADER_LEN_MIN) {
     return false;
   }
 
-  if (0 != memcmp(PROXY_V1_CONNECTION_PREFACE, buf, PROXY_V1_CONNECTION_PREFACE_LEN_MIN)) {
+  if (0 != memcmp(PROXY_V1_CONNECTION_PREFACE, buf, PROXY_V1_CONNECTION_PREFACE_LEN)) {
     return false;
   }
 
-  int64_t ret;
-  ret = reader->memchr('\r', strlen(buf), 0);
-  ret = reader->memchr('\n', strlen(buf), 0);
+  int64_t nl;
+  nl = reader->memchr('\n', strlen(buf), 0);
 
-  char local_buf[256];   // <- there is a max - LOOK IT UP!
-  reader->read(local_buf, ret+1);
+  char local_buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX + 1];
+  reader->read(local_buf, nl + 1);
 
   // Now that we know we have a valid PROXY V1 preface, let's parse the
   // remainder of the header

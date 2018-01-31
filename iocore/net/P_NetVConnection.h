@@ -90,14 +90,14 @@ TS_INLINE sockaddr const *
 NetVConnection::get_proxy_protocol_addr(ProxyProtocolData_t src_or_dst)
 {
   if (src_or_dst == PROXY_PROTO_SRC) {
-    if ((ats_is_ip(&pp_info.src_addr) && ats_ip_port_cast(&pp_info.src_addr))
-        || (ats_is_ip4(&pp_info.src_addr) && INADDR_ANY != ats_ip4_addr_cast(&pp_info.src_addr)) // IPv4
+    if ((ats_is_ip(&pp_info.src_addr) && ats_ip_port_cast(&pp_info.src_addr)) ||
+        (ats_is_ip4(&pp_info.src_addr) && INADDR_ANY != ats_ip4_addr_cast(&pp_info.src_addr)) // IPv4
         || (ats_is_ip6(&pp_info.src_addr) && !IN6_IS_ADDR_UNSPECIFIED(&pp_info.src_addr.sin6.sin6_addr))) {
     }
     return &pp_info.src_addr.sa;
   } else {
-    if ((ats_is_ip(&pp_info.dst_addr) && ats_ip_port_cast(&pp_info.dst_addr))
-        || (ats_is_ip4(&pp_info.dst_addr) && INADDR_ANY != ats_ip4_addr_cast(&pp_info.dst_addr)) // IPv4
+    if ((ats_is_ip(&pp_info.dst_addr) && ats_ip_port_cast(&pp_info.dst_addr)) ||
+        (ats_is_ip4(&pp_info.dst_addr) && INADDR_ANY != ats_ip4_addr_cast(&pp_info.dst_addr)) // IPv4
         || (ats_is_ip6(&pp_info.dst_addr) && !IN6_IS_ADDR_UNSPECIFIED(&pp_info.dst_addr.sin6.sin6_addr))) {
     }
     return &pp_info.dst_addr.sa;
@@ -113,7 +113,5 @@ NetVConnection::set_proxy_protocol_addr(ProxyProtocolData_t src_or_dst, ts::stri
   } else {
     ret = ats_ip_pton(ip_port_str, &pp_info.dst_addr);
   }
-//  ats_ip_copy(&remote_addr, &con.addr);
   return ret;
 }
-

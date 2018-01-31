@@ -662,27 +662,32 @@ public:
   int set_proxy_protocol_addr(ProxyProtocolData_t, ts::string_view &);
 
   void
-  set_proxy_protocol_src_addr(ts::string_view src) {
+  set_proxy_protocol_src_addr(ts::string_view src)
+  {
     set_proxy_protocol_addr(PROXY_PROTO_SRC, src);
   }
 
   void
-  set_proxy_protocol_dst_addr(ts::string_view src) {
+  set_proxy_protocol_dst_addr(ts::string_view src)
+  {
     set_proxy_protocol_addr(PROXY_PROTO_DST, src);
   }
 
   void
-  set_proxy_protocol_src_port(uint16_t val) {
+  set_proxy_protocol_src_port(uint16_t val)
+  {
     pp_info.src_port = val;
   }
 
   void
-  set_proxy_protocol_dst_port(uint16_t val) {
+  set_proxy_protocol_dst_port(uint16_t val)
+  {
     pp_info.dst_port = val;
   }
 
   void
-  set_proxy_protocol_version(ProxyProtocolVersion_t ver) {
+  set_proxy_protocol_version(ProxyProtocolVersion_t ver)
+  {
     pp_info.proxy_protocol_version = ver;
   }
 
@@ -719,7 +724,7 @@ public:
   };
 
   typedef struct _ProxyProtocol {
-    ProxyProtocolVersion_t proxy_protocol_version   = PROXY_VERSION_UNDEFINED;
+    ProxyProtocolVersion_t proxy_protocol_version = PROXY_VERSION_UNDEFINED;
     uint16_t ip_family;
     IpEndpoint src_addr;
     uint16_t src_port;

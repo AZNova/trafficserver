@@ -5513,13 +5513,11 @@ HttpTransact::initialize_state_variables_from_request(State *s, HTTPHdr *obsolet
   ats_ip_copy(&s->request_data.src_ip, &s->client_info.src_addr);
   memset(&s->request_data.dest_ip, 0, sizeof(s->request_data.dest_ip));
   if (vc) {
-    s->request_data.incoming_port = vc->get_local_port();
-      s->pp_info.proxy_protocol_version = vc->get_proxy_protocol_version();
+    s->request_data.incoming_port     = vc->get_local_port();
+    s->pp_info.proxy_protocol_version = vc->get_proxy_protocol_version();
     if (s->pp_info.proxy_protocol_version != NetVConnection::PROXY_VERSION_UNDEFINED) {
       ats_ip_copy(s->pp_info.src_addr, vc->pp_info.src_addr);
-      //s->pp_info.src_port = vc->get_proxy_protocol_src_port();
       ats_ip_copy(s->pp_info.dst_addr, vc->pp_info.dst_addr);
-      //s->pp_info.dst_port = vc->get_proxy_protocol_dst_port();
     }
   }
   s->request_data.xact_start                      = s->client_request_time;

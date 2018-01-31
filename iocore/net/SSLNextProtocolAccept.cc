@@ -34,8 +34,7 @@ send_plugin_event(Continuation *plugin, int event, void *edata)
   }
 }
 
-//static SSLNetVConnection *
-SSLNetVConnection *
+static SSLNetVConnection *
 ssl_netvc_cast(int event, void *edata)
 {
   union {
@@ -57,68 +56,68 @@ ssl_netvc_cast(int event, void *edata)
   }
 }
 
-//// SSLNextProtocolTrampoline is the receiver of the I/O event generated when we perform a 0-length read on the new SSL
-//// connection. The 0-length read forces the SSL handshake, which allows us to bind an endpoint that is selected by the
-//// NPN extension. The Continuation that receives the read event *must* have a mutex, but we don't want to take a global
-//// lock across the handshake, so we make a trampoline to bounce the event from the SSL acceptor to the ultimate session
-//// acceptor.
-//struct SSLNextProtocolTrampoline : public Continuation {
-//  SSLNextProtocolTrampoline(const SSLNextProtocolAccept *npn, Ptr<ProxyMutex> &mutex) : Continuation(mutex), npnParent(npn)
-//  {
-//    SET_HANDLER(&SSLNextProtocolTrampoline::ioCompletionEvent);
-//  }
-//
-int
-SSLNextProtocolTrampoline::ioCompletionEvent(int event, void *edata)
-{
-  VIO *vio;
-  Continuation *plugin;
-  SSLNetVConnection *netvc;
+// SSLNextProtocolTrampoline is the receiver of the I/O event generated when we perform a 0-length read on the new SSL
+// connection. The 0-length read forces the SSL handshake, which allows us to bind an endpoint that is selected by the
+// NPN extension. The Continuation that receives the read event *must* have a mutex, but we don't want to take a global
+// lock across the handshake, so we make a trampoline to bounce the event from the SSL acceptor to the ultimate session
+// acceptor.
+struct SSLNextProtocolTrampoline : public Continuation {
+  SSLNextProtocolTrampoline(const SSLNextProtocolAccept *npn, Ptr<ProxyMutex> &mutex) : Continuation(mutex), npnParent(npn)
+  {
+    SET_HANDLER(&SSLNextProtocolTrampoline::ioCompletionEvent);
+  }
 
-  vio   = static_cast<VIO *>(edata);
-  netvc = dynamic_cast<SSLNetVConnection *>(vio->vc_server);
-  ink_assert(netvc != nullptr);
+  int
+  ioCompletionEvent(int event, void *edata)
+  {
+    VIO *vio;
+    Continuation *plugin;
+    SSLNetVConnection *netvc;
 
-  switch (event) {
-  case VC_EVENT_EOS:
-  case VC_EVENT_ERROR:
-  case VC_EVENT_ACTIVE_TIMEOUT:
-  case VC_EVENT_INACTIVITY_TIMEOUT:
+    vio   = static_cast<VIO *>(edata);
+    netvc = dynamic_cast<SSLNetVConnection *>(vio->vc_server);
+    ink_assert(netvc != nullptr);
+
+    switch (event) {
+    case VC_EVENT_EOS:
+    case VC_EVENT_ERROR:
+    case VC_EVENT_ACTIVE_TIMEOUT:
+    case VC_EVENT_INACTIVITY_TIMEOUT:
+      // Cancel the read before we have a chance to delete the continuation
+      netvc->do_io_read(nullptr, 0, nullptr);
+      netvc->do_io_close();
+      delete this;
+      return EVENT_ERROR;
+    case VC_EVENT_READ_COMPLETE:
+      break;
+    default:
+      return EVENT_ERROR;
+    }
+
+    // Cancel the action, so later timeouts and errors don't try to
+    // send the event to the Accept object.  After this point, the accept
+    // object does not care.
+    netvc->set_action(nullptr);
+
     // Cancel the read before we have a chance to delete the continuation
     netvc->do_io_read(nullptr, 0, nullptr);
-    netvc->do_io_close();
+    plugin = netvc->endpoint();
+    if (plugin) {
+      send_plugin_event(plugin, NET_EVENT_ACCEPT, netvc);
+    } else if (npnParent->endpoint) {
+      // Route to the default endpoint
+      send_plugin_event(npnParent->endpoint, NET_EVENT_ACCEPT, netvc);
+    } else {
+      // No handler, what should we do? Best to just kill the VC while we can.
+      netvc->do_io_close();
+    }
+
     delete this;
-    return EVENT_ERROR;
-  case VC_EVENT_READ_COMPLETE:
-    break;
-  default:
-    return EVENT_ERROR;
+    return EVENT_CONT;
   }
 
-  // Cancel the action, so later timeouts and errors don't try to
-  // send the event to the Accept object.  After this point, the accept
-  // object does not care.
-  netvc->set_action(nullptr);
-
-  // Cancel the read before we have a chance to delete the continuation
-  netvc->do_io_read(nullptr, 0, nullptr);
-  plugin = netvc->endpoint();
-  if (plugin) {
-    send_plugin_event(plugin, NET_EVENT_ACCEPT, netvc);
-  } else if (npnParent->endpoint) {
-    // Route to the default endpoint
-    send_plugin_event(npnParent->endpoint, NET_EVENT_ACCEPT, netvc);
-  } else {
-    // No handler, what should we do? Best to just kill the VC while we can.
-    netvc->do_io_close();
-  }
-
-  delete this;
-  return EVENT_CONT;
-}
-//
-//  const SSLNextProtocolAccept *npnParent;
-//};
+  const SSLNextProtocolAccept *npnParent;
+};
 
 int
 SSLNextProtocolAccept::mainEvent(int event, void *edata)

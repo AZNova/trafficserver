@@ -849,13 +849,6 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
 }
 
 void
-HttpTransactHeaders::insert_forwarded_header_in_request(HttpTransact::State *s, HTTPHdr *header)
-{
-  // TODO:  Yeah, we're gonna need something in here to build and insert the
-  // Forwarded: header- reveller - PROXY Protocol
-}
-
-void
 HttpTransactHeaders::insert_hsts_header_in_response(HttpTransact::State *s, HTTPHdr *header)
 {
   char new_hsts_string[64];
@@ -1033,8 +1026,7 @@ HttpTransactHeaders::add_forwarded_field_to_request(HttpTransact::State *s, HTTP
     if (optSet[HttpForwarded::FOR]) {
       // NOTE:  The logic within this if statement assumes that hdr is empty at this point.
 
-      if ((s->pp_info.proxy_protocol_version != NetVConnection::PROXY_VERSION_UNDEFINED) 
-              && ats_is_ip(&s->pp_info.src_addr.sa)) {
+      if ((s->pp_info.proxy_protocol_version != NetVConnection::PROXY_VERSION_UNDEFINED) && ats_is_ip(&s->pp_info.src_addr.sa)) {
         p_src_sa = &s->pp_info.src_addr.sa;
       } else if (ats_is_ip(&s->client_info.src_addr.sa)) {
         p_src_sa = &s->client_info.src_addr.sa;
@@ -1042,7 +1034,6 @@ HttpTransactHeaders::add_forwarded_field_to_request(HttpTransact::State *s, HTTP
 
       hdr << "for=";
 
-      //bool is_ipv6 = ats_is_ip6(&s->client_info.src_addr.sa);
       bool is_ipv6 = ats_is_ip6(p_src_sa);
 
       if (is_ipv6) {
