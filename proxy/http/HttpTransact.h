@@ -509,12 +509,6 @@ public:
     CACHE_AUTH_SERVE
   };
 
-  enum ProxyProtocolData_t {
-    PROXY_PROTO_UNDEFINED,
-    PROXY_PROTO_SRC,
-    PROXY_PROTO_DST,
-  };
-
   struct State;
   typedef void (*TransactFunc_t)(HttpTransact::State *);
 
