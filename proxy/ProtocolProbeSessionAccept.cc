@@ -46,37 +46,6 @@ proto_is_http2(IOBufferReader *reader)
   return memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) == 0;
 }
 
-static bool
-proto_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
-{
-  char buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX];
-  char *end;
-  ptrdiff_t nbytes;
-
-  end    = reader->memcpy(buf, sizeof(buf), 0 /* offset */);
-  nbytes = end - buf;
-
-  // Client must send at least 4 bytes to get a reasonable match.
-  if (nbytes < (long)PROXY_V1_CONNECTION_HEADER_LEN_MIN) {
-    return false;
-  }
-
-  if (0 != memcmp(PROXY_V1_CONNECTION_PREFACE, buf, PROXY_V1_CONNECTION_PREFACE_LEN)) {
-    return false;
-  }
-
-  int64_t nl;
-  nl = reader->memchr('\n', strlen(buf), 0);
-
-  char local_buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX + 1];
-  reader->read(local_buf, nl + 1);
-
-  // Now that we know we have a valid PROXY V1 preface, let's parse the
-  // remainder of the header
-
-  return (proxy_protov1_parse(netvc, local_buf));
-}
-
 struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessionAcceptEnums {
   static const size_t minimum_read_size   = 1;
   static const unsigned buffer_size_index = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
@@ -122,8 +91,8 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
       goto done;
     }
 
-    if (proto_has_proxy_v1(reader, netvc)) {
-      Debug("http", "ioCompletionEvent: protocol has proxy_v1");
+    if (http_has_proxy_v1(reader, netvc)) {
+      Debug("http", "ioCompletionEvent: http has proxy_v1 header");
     }
 
     if (proto_is_http2(reader)) {

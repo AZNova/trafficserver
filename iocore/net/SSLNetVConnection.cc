@@ -326,31 +326,6 @@ ssl_read_from_net(SSLNetVConnection *sslvc, EThread *lthread, int64_t &ret)
   return event;
 }
 
-// Proxy Protocol
-bool
-ssl_has_proxy_v1(SSLNetVConnection *sslvc, char *buffer, int64_t *r)
-{
-  int64_t nl = 0;
-  char *nlp  = nullptr;
-  if (0 == memcmp(PROXY_V1_CONNECTION_PREFACE, buffer, PROXY_V1_CONNECTION_PREFACE_LEN)) {
-    nlp = (char *)memchr(buffer, '\n', PROXY_V1_CONNECTION_HEADER_LEN_MAX);
-    if (nlp) {
-      nl = (int64_t)(nlp - buffer);
-      Debug("ssl", "Consuming %lld characters of the PROXY header from %p to %p", nl + 1, buffer, nlp);
-      char local_buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX + 1];
-      memcpy(local_buf, buffer, nl + 1);
-      memmove(buffer, buffer + nl + 1, nl + 1);
-      *r -= nl + 1;
-      if (*r <= 0) {
-        *r = -EAGAIN;
-      }
-      proxy_protov1_parse(sslvc, local_buf);
-    }
-    return true;
-  }
-  return false;
-}
-
 /**
  * Read from socket directly for handshake data.  Store the data in
  * a MIOBuffer.  Place the data in the read BIO so the openssl library
@@ -398,7 +373,9 @@ SSLNetVConnection::read_raw_data()
   }
   NET_SUM_DYN_STAT(net_read_bytes_stat, r);
 
-  ssl_has_proxy_v1(this, buffer, &r);
+  if (ssl_has_proxy_v1(this, buffer, &r)) {
+    Debug("ssl", "[SSLNetVConnection::read_raw_data] ssl has proxy_v1 header");
+  }
 
   if (r > 0) {
     this->handShakeBuffer->fill(r);
