@@ -33,7 +33,7 @@ ssl_has_proxy_v1(NetVConnection *sslvc, char *buffer, int64_t *r)
     nlp = (char *)memchr(buffer, '\n', PROXY_V1_CONNECTION_HEADER_LEN_MAX);
     if (nlp) {
       nl = (int64_t)(nlp - buffer);
-      Debug("ssl", "Consuming %lld characters of the PROXY header from %p to %p", nl + 1, buffer, nlp);
+      Debug("ssl", "Consuming %" PRId64 " characters of the PROXY header from %p to %p", nl + 1, buffer, nlp);
       char local_buf[PROXY_V1_CONNECTION_HEADER_LEN_MAX + 1];
       memcpy(local_buf, buffer, nl + 1);
       memmove(buffer, buffer + nl + 1, nl + 1);
