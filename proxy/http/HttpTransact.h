@@ -1190,6 +1190,9 @@ public:
       }
       internal_msg_buffer_size = 0;
     }
+
+    NetVConnection::ProxyProtocol pp_info;
+
   }; // End of State struct.
 
   static void HandleBlindTunnel(State *s);
