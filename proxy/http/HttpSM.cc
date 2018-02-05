@@ -39,14 +39,13 @@
 #include "RemapProcessor.h"
 #include "Transform.h"
 #include "P_SSLConfig.h"
+#include "HttpPages.h"
+#include "IPAllow.h"
+#include "ts/I_Layout.h"
+
 #include <openssl/ossl_typ.h>
 #include <openssl/ssl.h>
-#include "HttpPages.h"
-
-#include "IPAllow.h"
-//#include "I_Auth.h"
-//#include "HttpAuthParams.h"
-#include "ts/I_Layout.h"
+#include <algorithm>
 
 #define DEFAULT_RESPONSE_BUFFER_SIZE_INDEX 6 // 8K
 #define DEFAULT_REQUEST_BUFFER_SIZE_INDEX 6  // 8K
@@ -436,6 +435,17 @@ HttpSM::attach_client_session(ProxyClientTransaction *client_vc, IOBufferReader 
     return;
   }
   ua_txn = client_vc;
+
+  // It seems to be possible that the ua_txn pointer will go stale before log entries for this HTTP transaction are
+  // generated.  Therefore, collect information that may be needed for logging from the ua_txn object at this point.
+  //
+  _client_transaction_id = ua_txn->get_transaction_id();
+  {
+    auto p = ua_txn->get_parent();
+    if (p) {
+      _client_connection_id = p->connection_id();
+    }
+  }
 
   // Collect log & stats information
   client_tcp_reused         = !(ua_txn->is_first_transaction());
@@ -5604,8 +5614,15 @@ HttpSM::do_setup_post_tunnel(HttpVC_t to_vc_type)
     break;
   }
 
+  // The user agent may support chunked (HTTP/1.1) or not (HTTP/2)
+  // In either case, the server will support chunked (HTTP/1.1)
   if (chunked) {
-    tunnel.set_producer_chunking_action(p, 0, TCA_PASSTHRU_CHUNKED_CONTENT);
+    if (ua_txn->is_chunked_encoding_supported()) {
+      tunnel.set_producer_chunking_action(p, 0, TCA_PASSTHRU_CHUNKED_CONTENT);
+    } else {
+      tunnel.set_producer_chunking_action(p, 0, TCA_CHUNK_CONTENT);
+      tunnel.set_producer_chunking_size(p, 0);
+    }
   }
 
   ua_txn->set_inactivity_timeout(HRTIME_SECONDS(t_state.txn_conf->transaction_no_activity_timeout_in));
@@ -6905,11 +6922,10 @@ HttpSM::update_stats()
       if (is_action_tag_set("http_handler_times")) {
           print_all_http_handler_times();
       }
-      */
+  */
 
   // print slow requests if the threshold is set (> 0) and if we are over the time threshold
   if (t_state.txn_conf->slow_log_threshold != 0 && ink_hrtime_from_msec(t_state.txn_conf->slow_log_threshold) < total_time) {
-    URL *url             = t_state.hdr_info.client_request.url_get();
     char url_string[256] = "";
     int offset           = 0;
     int skip             = 0;
@@ -6919,13 +6935,12 @@ HttpSM::update_stats()
 
     // unique id
     char unique_id_string[128] = "";
-    // [amc] why do we check the URL to get a MIME field?
-    if (nullptr != url && url->valid()) {
-      int length        = 0;
-      const char *field = t_state.hdr_info.client_request.value_get(MIME_FIELD_X_ID, MIME_LEN_X_ID, &length);
-      if (field != nullptr) {
-        ink_strlcpy(unique_id_string, field, sizeof(unique_id_string));
-      }
+    int length                 = 0;
+    const char *field          = t_state.hdr_info.client_request.value_get(MIME_FIELD_X_ID, MIME_LEN_X_ID, &length);
+    if (field != nullptr && length > 0) {
+      length = std::min(length, static_cast<int>(sizeof(unique_id_string)) - 1);
+      memcpy(unique_id_string, field, length);
+      unique_id_string[length] = 0; // NULL terminate the string
     }
 
     // set the fd for the request
