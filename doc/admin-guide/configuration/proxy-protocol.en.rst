@@ -31,7 +31,8 @@ TLS connections.
 
 .. note::
 
-    The current version only supports the PROXY Version 1 header.
+    The current version only supports transforming client IP from PROXY Version 1 
+    header to the Forwarded: header.
 
 In the current implementation, the client IP address in the PROXY protocol header
 is passed to the origin server via a `Forwarded:
@@ -71,7 +72,7 @@ header to determine the TLS connection originated from the client at ``192.168.1
 
 .. code-block:: lua
 
-    Forwarded: for=192.168.2.118;by=10.0.0.2;proto=https;host=test000001.com
+    Forwarded: for=192.168.2.100;by=10.0.0.2;proto=https;host=test000001.com
 
 References
 ==========
