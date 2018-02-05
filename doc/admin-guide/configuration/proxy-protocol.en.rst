@@ -35,7 +35,7 @@ TLS connections.
     header to the Forwarded: header.
 
 In the current implementation, the client IP address in the PROXY protocol header
-is passed to the origin server via a `Forwarded:
+is passed to the origin server via an HTTP `Forwarded:
 <https://tools.ietf.org/html/rfc7239>`_ header.
 See :ts:cv:`proxy.config.http.insert_forwarded` for configuration information.
 Detection of the PROXY protocol header is automatic.  If the PROXY header
@@ -65,7 +65,7 @@ Server would see the connection originating from |TS| at ``10.0.0.2``:
 
 If the Load Balancer has the PROXY protocol enabled, requests sent theough the
 Load Balancer will be preceded with the PROXY header.  |TS| will detect the
-PROXY header and transform that into the Forwarded: header if configured to
+PROXY header and transform that into the Forwarded: HTTP header if configured to
 insert the Forwarded: header with the ``for`` paramter.  In the example above,
 if the client initiated a TLS connection, the Web Server can use the Forwarded:
 header to determine the TLS connection originated from the client at ``192.168.1.100``:
