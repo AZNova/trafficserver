@@ -1,6 +1,6 @@
 /** @file
  *
- *  Fundamental HTTP/2 protocol definitions and parsers.
+ *  PROXY protocol definitions and parsers.
  *
  *  @section license License
  *
@@ -57,7 +57,7 @@ http_has_proxy_v1(IOBufferReader *reader, NetVConnection *netvc)
   end    = reader->memcpy(buf, sizeof(buf), 0 /* offset */);
   nbytes = end - buf;
 
-  // Client must send at least 4 bytes to get a reasonable match.
+  // Client must send at least 15 bytes to get a reasonable match.
   if (nbytes < (long)PROXY_V1_CONNECTION_HEADER_LEN_MIN) {
     return false;
   }
@@ -89,11 +89,12 @@ proxy_protov1_parse(NetVConnection *netvc, char *buf)
   pch     = strtok(buf, " \n\r");
   while (pch != NULL) {
     switch (cnt) {
+    // The header should begin with the PROXY preface
     case 0:
       Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = PREFACE", cnt, pch);
       break;
 
-    // After the PROXY, exactly one space followed by the INET protocol family
+    // After the PROXY preface, exactly one space followed by the INET protocol family
     // - TCP4, TCP6 or UNKNOWN
     case 1:
       Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = INET Protocol", cnt, pch);
@@ -103,7 +104,6 @@ proxy_protov1_parse(NetVConnection *netvc, char *buf)
     // - 255.255.255.255 or ffff:f...f:ffff ffff:f...f:fff
     case 2:
       Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Source Address", cnt, pch);
-      // netvc->set_proxy_protocol_src_addr(addr_port);
       src_addr_port.assign(pch);
       break;
 
@@ -120,7 +120,6 @@ proxy_protov1_parse(NetVConnection *netvc, char *buf)
       Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Source Port", cnt, pch);
       src_addr_port = src_addr_port + ":" + pch;
       netvc->set_proxy_protocol_src_addr(ts::string_view(src_addr_port));
-      // netvc->set_proxy_protocol_src_port(1);
       break;
 
     // Next is exactly one space followed by TCP destination port represented as a
@@ -129,11 +128,6 @@ proxy_protov1_parse(NetVConnection *netvc, char *buf)
       Debug("proxyprotocol_v1", "proto_has_proxy_v1: token[%d]:[%s] = Destination Port", cnt, pch);
       dst_addr_port = dst_addr_port + ":" + pch;
       netvc->set_proxy_protocol_dst_addr(ts::string_view(dst_addr_port));
-
-      // THIS RIGHT HERE!  Fill in these fields into the netvc and then pull the
-      // data back out in the add_forwarded header function!
-      // Oh, and do this in the SSL stuff also!
-
       break;
     }
     // if we have our all of our fields, set version as a flag, we are done here

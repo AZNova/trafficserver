@@ -1,6 +1,8 @@
 /** @file
 
-  ProxyProtocol
+  PROXY Protocol
+
+  See:  https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 
   @section license License
 
