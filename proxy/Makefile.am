@@ -171,6 +171,8 @@ traffic_server_SOURCES = \
   ProxyClientSession.h \
   ProxyClientTransaction.cc \
   ProxyClientTransaction.h \
+  ProxyProtocol.cc \
+  ProxyProtocol.h \
   ReverseProxy.cc \
   ReverseProxy.h \
   SocksProxy.cc \
