@@ -95,8 +95,8 @@ public:
   /// Set the session protocol preference.
   self &setSessionProtocolPreference(SessionProtocolSet const &);
   /// Proxy Protocol.
-//  bool httpsessionaccept_f_proxy_protocol;
-//  IpMap httpsessionaccept_proxy_protocol_ipmap;
+  bool httpsessionaccept_f_proxy_protocol;
+  IpMap httpsessionaccept_proxy_protocol_ipmap;
 };
 
 inline HttpSessionAcceptOptions::HttpSessionAcceptOptions()
