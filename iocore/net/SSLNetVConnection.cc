@@ -390,8 +390,7 @@ SSLNetVConnection::read_raw_data()
   if (this->get_is_proxy_protocol()) {
     Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol is enabled on this port");
     if (src_ip == the_trusted_whitelist) {
-      char buff[INET6_ADDRSTRLEN];
-      Debug("ssl", "[SSLNetVConnection::read_raw_data] this source IP [%s] is trusted in the whitelist for proxy protocol", ats_ip_ntop(get_remote_addr(), buff, INET6_ADDRSTRLEN));
+      Debug("ssl", "[SSLNetVConnection::read_raw_data] Source IP is in the trusted whitelist for proxy protocol");
       if (ssl_has_proxy_v1(this, buffer, &r)) {
         Debug("ssl", "[SSLNetVConnection::read_raw_data] ssl has proxy_v1 header");
       } else {
