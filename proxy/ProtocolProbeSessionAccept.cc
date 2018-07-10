@@ -118,31 +118,31 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
       if (t_IpMap2->getCount() > 0) {
         Debug("http", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
         /// This is another test!!!
+
         void *payload = nullptr;
-        IpEndpoint src_ip;
-        ats_ip_pton("10.28.56.0", &src_ip);
+        // IpEndpoint src_ip;
+        // ats_ip_pton("10.28.56.0", &src_ip);
 
         if (!t_IpMap2->contains(src_ip, &payload)) {
-//        if (src_ip != the_trusted_whitelist) {  // <= replace this line when I figure out how to get the ipmap this far
           Debug("http", "ioCompletionEvent: proxy protocol src IP is NOT in the configured whitelist of trusted IPs - closing connection");
           goto done;
         } else {
           char new_host[INET6_ADDRSTRLEN];
-          Debug("http", "ioCompletionEvent: this source IP [%s] is trusted in the whitelist for proxy protocol", ats_ip_ntop(netvc->get_remote_addr(), new_host, sizeof(new_host)));
+          Debug("http", "ioCompletionEvent: Source IP [%s] is trusted in the whitelist for proxy protocol", ats_ip_ntop(netvc->get_remote_addr(), new_host, sizeof(new_host)));
 
-          //  Just testing our setup at this point.  This will get removed
-          if (t_IpMap != nullptr) {
-            size_t cnt = t_IpMap->getCount();
-            void *payload = nullptr;
-            IpEndpoint a_10_28_56_0;
-            ats_ip_pton("10.28.56.0", &a_10_28_56_0);
-            if (t_IpMap->contains(a_10_28_56_0, &payload)) {
-              Debug("http", "ioCompletionEvent: SUCCESSFUL: count = %zu", cnt);
-            }  
-            else {
-              Debug("http", "ioCompletionEvent: FAILED: count = %zu", cnt);
-            }
-          }
+          ////  Just testing our setup at this point.  This will get removed
+          //if (t_IpMap != nullptr) {
+          //  size_t cnt = t_IpMap->getCount();
+          //  void *payload = nullptr;
+          //  IpEndpoint a_10_28_56_0;
+          //  ats_ip_pton("10.28.56.0", &a_10_28_56_0);
+          //  if (t_IpMap->contains(a_10_28_56_0, &payload)) {
+          //    Debug("http", "ioCompletionEvent: SUCCESSFUL: count = %zu", cnt);
+          //  }  
+          //  else {
+          //    Debug("http", "ioCompletionEvent: FAILED: count = %zu", cnt);
+          //  }
+          //}
           // End of test
         }
       } else {
@@ -151,6 +151,7 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
 
       if (http_has_proxy_v1(reader, netvc)) {
         Debug("http", "ioCompletionEvent: http has proxy_v1 header");
+        set_remote_addr(get_proxy_protocol_src_addr());
       } else {
         Debug("http", "ioCompletionEvent: proxy protocol was enabled, but required header was not present in the transaction - closing connection");
         goto done;

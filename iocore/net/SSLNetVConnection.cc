@@ -354,8 +354,8 @@ SSLNetVConnection::read_raw_data()
   int buf_len;
   IOBufferBlock *b = this->handShakeBuffer->first_write_block();
   // int f_proxy_protocol = 1;  // these are mocked up variableds
-  int src_ip = 1;
-  int the_trusted_whitelist = 1;
+  // int src_ip = 1;
+  // int the_trusted_whitelist = 1;
 
   rattempted = b->write_avail();
   while (rattempted) {
@@ -387,20 +387,55 @@ SSLNetVConnection::read_raw_data()
   }
   NET_SUM_DYN_STAT(net_read_bytes_stat, r);
 
+  IpMap *t_IpMap2;
+  t_IpMap2 = probeParent->protocolprobesessionaccept_proxy_protocol_ipmap_ref;
+  if (t_IpMap2->getCount() > 0) {
+    Debug("http", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
+  }
+
   if (this->get_is_proxy_protocol()) {
     Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol is enabled on this port");
-    if (src_ip == the_trusted_whitelist) {
-      Debug("ssl", "[SSLNetVConnection::read_raw_data] Source IP is in the trusted whitelist for proxy protocol");
-      if (ssl_has_proxy_v1(this, buffer, &r)) {
-        Debug("ssl", "[SSLNetVConnection::read_raw_data] ssl has proxy_v1 header");
-      } else {
-        Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol was enabled, but required header was not present in the transaction - closing connection");
+    if (t_IpMap2->getCount() > 0) {
+        Debug("http", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
+
+        // At this point, using get_remote_addr() will return the ip of the
+        // proxy source IP, not the Proxy Protocol client ip. Since we are
+        // checking the ip of the actual source of this connection, this is
+        // what we want now.
+        void *payload = nullptr;
+        if (!t_IpMap2->contains(get_remote_addr(), &payload)) {
+          Debug("http", "ioCompletionEvent: proxy protocol src IP is NOT in the configured whitelist of trusted IPs - closing connection");
+          // Need a quick close/exit here !!!!!!!!!
+        } else {
+          char new_host[INET6_ADDRSTRLEN];
+          Debug("ssl", "[SSLNetVConnection::read_raw_data] Source IP [%s] is in the trusted whitelist for proxy protocol", ats_ip_ntop(this->get_remote_addr(), new_host, sizeof(new_host)));
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
+          //
       }
+    } else {
+      Debug("http", "ioCompletionEvent: proxy protocol DOES NOT have a configured whitelist of trusted IPs but proxy protocol is ernabled on this port - processing all connections");
     }
-  }
-//    if (ssl_has_proxy_v1(this, buffer, &r)) {
-//      Debug("ssl", "[SSLNetVConnection::read_raw_data] ssl has proxy_v1 header");
-//    }
+
+    if (ssl_has_proxy_v1(this, buffer, &r)) {
+      Debug("ssl", "[SSLNetVConnection::read_raw_data] ssl has proxy_v1 header");
+      set_remote_addr(get_proxy_protocol_src_addr());
+    } else {
+      Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol was enabled, but required header was not present in the transaction - closing connection");
+    }
+  }  // end of Proxy Protocol processing
 
   if (r > 0) {
     this->handShakeBuffer->fill(r);
