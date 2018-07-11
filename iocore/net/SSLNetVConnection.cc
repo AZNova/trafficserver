@@ -34,6 +34,7 @@
 #include "P_SSLSNI.h"
 #include "HttpTunnel.h"
 #include "ProxyProtocol.h"
+#include <HttpConfig.h>
 
 #include <climits>
 #include <string>
@@ -353,9 +354,6 @@ SSLNetVConnection::read_raw_data()
   char *buffer       = nullptr;
   int buf_len;
   IOBufferBlock *b = this->handShakeBuffer->first_write_block();
-  // int f_proxy_protocol = 1;  // these are mocked up variableds
-  // int src_ip = 1;
-  // int the_trusted_whitelist = 1;
 
   rattempted = b->write_avail();
   while (rattempted) {
@@ -388,15 +386,12 @@ SSLNetVConnection::read_raw_data()
   NET_SUM_DYN_STAT(net_read_bytes_stat, r);
 
   IpMap *t_IpMap2;
-  t_IpMap2 = probeParent->protocolprobesessionaccept_proxy_protocol_ipmap_ref;
-  if (t_IpMap2->getCount() > 0) {
-    Debug("http", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
-  }
+  t_IpMap2 = SSLConfigParams::proxy_protocol_ipmap;
 
   if (this->get_is_proxy_protocol()) {
     Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol is enabled on this port");
     if (t_IpMap2->getCount() > 0) {
-        Debug("http", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
+        Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol has a configured whitelist of trusted IPs - checking");
 
         // At this point, using get_remote_addr() will return the ip of the
         // proxy source IP, not the Proxy Protocol client ip. Since we are
@@ -404,29 +399,15 @@ SSLNetVConnection::read_raw_data()
         // what we want now.
         void *payload = nullptr;
         if (!t_IpMap2->contains(get_remote_addr(), &payload)) {
-          Debug("http", "ioCompletionEvent: proxy protocol src IP is NOT in the configured whitelist of trusted IPs - closing connection");
-          // Need a quick close/exit here !!!!!!!!!
+          Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol src IP is NOT in the configured whitelist of trusted IPs - closing connection");
+          r = -ENOTCONN;    // Need a quick close/exit here to refuse the connection!!!!!!!!!
+          goto proxy_protocol_bypass;
         } else {
           char new_host[INET6_ADDRSTRLEN];
           Debug("ssl", "[SSLNetVConnection::read_raw_data] Source IP [%s] is in the trusted whitelist for proxy protocol", ats_ip_ntop(this->get_remote_addr(), new_host, sizeof(new_host)));
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
-          //
       }
     } else {
-      Debug("http", "ioCompletionEvent: proxy protocol DOES NOT have a configured whitelist of trusted IPs but proxy protocol is ernabled on this port - processing all connections");
+      Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol DOES NOT have a configured whitelist of trusted IPs but proxy protocol is ernabled on this port - processing all connections");
     }
 
     if (ssl_has_proxy_v1(this, buffer, &r)) {
@@ -436,6 +417,8 @@ SSLNetVConnection::read_raw_data()
       Debug("ssl", "[SSLNetVConnection::read_raw_data] proxy protocol was enabled, but required header was not present in the transaction - closing connection");
     }
   }  // end of Proxy Protocol processing
+
+proxy_protocol_bypass:
 
   if (r > 0) {
     this->handShakeBuffer->fill(r);
