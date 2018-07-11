@@ -40,6 +40,7 @@
 #include "P_SSLCertLookup.h"
 #include "SSLSessionCache.h"
 #include <records/I_RecHttp.h>
+#include <HttpConfig.h>
 
 int SSLConfig::configid                                     = 0;
 int SSLCertificateConfig::configid                          = 0;
@@ -57,6 +58,8 @@ size_t SSLConfigParams::session_cache_max_bucket_size       = 100;
 init_ssl_ctx_func SSLConfigParams::init_ssl_ctx_cb          = nullptr;
 load_ssl_file_func SSLConfigParams::load_ssl_file_cb        = nullptr;
 bool SSLConfigParams::sni_map_enable                        = false;
+
+IpMap *SSLConfigParams::proxy_protocol_ipmap                = nullptr;
 
 // TS-3534 Wiretracing for SSL Connections
 int SSLConfigParams::ssl_wire_trace_enabled       = 0;
@@ -124,6 +127,7 @@ SSLConfigParams::cleanup()
   client_cipherSuite      = (char *)ats_free_null(client_cipherSuite);
   dhparamsFile            = (char *)ats_free_null(dhparamsFile);
   ssl_wire_trace_ip       = (IpAddr *)ats_free_null(ssl_wire_trace_ip);
+  proxy_protocol_ipmap    = (IpMap *)ats_free_null(proxy_protocol_ipmap);
 
   freeCTXmap();
   SSLReleaseContext(client_ctx);
@@ -355,6 +359,9 @@ SSLConfigParams::initialize()
     ssl_wire_trace_percentage  = 0;
     ssl_wire_trace_server_name = nullptr;
   }
+
+  proxy_protocol_ipmap = &HttpConfig::m_master.config_proxy_protocol_ipmap;
+
   // Enable client regardless of config file settings as remap file
   // can cause HTTP layer to connect using SSL. But only if SSL
   // initialization hasn't failed already.
