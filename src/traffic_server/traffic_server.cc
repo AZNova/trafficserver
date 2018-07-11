@@ -1614,12 +1614,6 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   // Local process manager
   initialize_process_manager();
 
-  // Ensure only one copy of traffic server is running, unless it's a command
-  // that doesn't require a lock.
-  if (!(command_valid && commands[command_index].no_process_lock)) {
-    check_lockfile();
-  }
-
   // Set the core limit for the process
   init_core_size();
   init_system();
@@ -1672,6 +1666,12 @@ main(int /* argc ATS_UNUSED */, const char **argv)
     RestrictCapabilities();
   }
 #endif
+
+  // Ensure only one copy of traffic server is running, unless it's a command
+  // that doesn't require a lock.
+  if (!(command_valid && commands[command_index].no_process_lock)) {
+    check_lockfile();
+  }
 
   // Can't generate a log message yet, do that right after Diags is
   // setup.
@@ -1800,8 +1800,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   ink_dns_init(makeModuleVersion(HOSTDB_MODULE_MAJOR_VERSION, HOSTDB_MODULE_MINOR_VERSION, PRIVATE_MODULE_HEADER));
   ink_split_dns_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
 
-  naVecMutex             = new_ProxyMutex();
-  started_et_net_threads = 0;
+  naVecMutex = new_ProxyMutex();
 
   // Do the inits for NetProcessors that use ET_NET threads. MUST be before starting those threads.
   netProcessor.init();

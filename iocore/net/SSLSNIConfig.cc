@@ -82,6 +82,8 @@ SNIConfigParams::loadSNIConfig()
       TunnelMap.emplace(item.fqdn.data(), item.tunnel_destination);
     }
 
+    auto ai3 = new SNI_IpAllow(item.ip_allow, servername);
+    aiVec->push_back(ai3);
     // set the next hop properties
     SSLConfig::scoped_config params;
     auto clientCTX  = params->getCTX(servername);
@@ -144,19 +146,19 @@ SNIConfigParams::Initialize()
 
   struct stat sbuf;
   if (stat(sni_filename, &sbuf) == -1 && errno == ENOENT) {
-    Note("failed to reload ssl_server_name.config");
+    Note("failed to reload ssl_server_name.yaml");
     Warning("Loading SNI configuration - filename: %s doesn't exist", sni_filename);
     return 1;
   }
 
   ts::Errata zret = Y_sni.loader(sni_filename);
   if (!zret.isOK()) {
-    Note("failed to reload ssl_server_name.config");
+    Note("failed to reload ssl_server_name.yaml");
     return 1;
   }
 
   loadSNIConfig();
-  Note("ssl_server_name.config done reloading!");
+  Note("ssl_server_name.yaml done reloading!");
 
   return 0;
 }

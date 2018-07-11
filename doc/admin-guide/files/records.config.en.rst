@@ -2559,16 +2559,16 @@ HostDB
    ``ipv4``   Resolve to an IPv4 address.
    ``ipv6``   Resolve to an IPv6 address.
    ``client`` Resolve to the same family as the client IP address.
-   ``none``   Stop resolving.
+   ``only``   Stop resolving.
    ========== ====================================================
 
    The order of the keywords is critical. When a host name needs to be resolved
    it is resolved in same order as the keywords. If a resolution fails, the
-   next option in the list is tried. The keyword ``none`` means to give up
+   next option in the list is tried. The keyword ``only`` means to give up
    resolution entirely. The keyword list has a maximum length of three
    keywords, more are never needed. By default there is an implicit
    ``ipv4;ipv6`` attached to the end of the string unless the keyword
-   ``none`` appears.
+   ``only`` appears.
 
 .. topic:: Example
 
@@ -2584,13 +2584,13 @@ HostDB
 
    Resolve only to IPv4. ::
 
-      ipv4;none
+      ipv4;only
 
 .. topic:: Example
 
    Resolve only to the same family as the client (do not permit cross family transactions). ::
 
-      client;none
+      client;only
 
    This value is a global default that can be overridden by :ts:cv:`proxy.config.http.server_ports`.
 
@@ -2743,7 +2743,7 @@ Logging Configuration
 
    For information on sending custom formats to the collation server,
    refer to :ref:`admin-logging-collating-custom-formats` and
-   :file:`logging.config`.
+   :file:`logging.yaml`.
 
 .. note::
 
@@ -2865,11 +2865,11 @@ Logging Configuration
    completion will cause its timing stats to be written to the :ts:cv:`debugging log file
    <proxy.config.output.logfile>`. This is identifying data about the transaction and all of the :c:type:`transaction milestones <TSMilestonesType>`.
 
-.. ts:cv:: CONFIG proxy.config.log.config.filename STRING logging.config
+.. ts:cv:: CONFIG proxy.config.log.config.filename STRING logging.yaml
    :reloadable:
 
    This configuration value specifies the path to the
-   :file:`logging.config` configuration file. If this is a relative
+   :file:`logging.yaml` configuration file. If this is a relative
    path, |TS| loads it relative to the ``SYSCONFDIR`` directory.
 
 Diagnostic Logging Configuration
@@ -3150,9 +3150,9 @@ SSL Termination
    ``head -c48 /dev/urandom | openssl enc -base64 | head -c48 > file.ticket``. Also
    note that OpenSSL session tickets are sensitive to the version of the ca-certificates.
 
-.. ts:cv:: CONFIG proxy.config.ssl.servername.filename STRING ssl_server_name.config
+.. ts:cv:: CONFIG proxy.config.ssl.servername.filename STRING ssl_server_name.yaml
 
-   The filename of the :file:`ssl_server_name.config` configuration file. If relative, it is relative to the
+   The filename of the :file:`ssl_server_name.yaml` configuration file. If relative, it is relative to the
    configuration directory (ts:cv:`proxy.config.config_dir`).
 
 .. ts:cv:: CONFIG proxy.config.ssl.max_record_size INT 0
