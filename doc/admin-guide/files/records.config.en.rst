@@ -608,6 +608,7 @@ HTTP Engine
    ip-out      Value           Local outbound IP address.
    ip-resolve  Value           IP address resolution style.
    proto       Value           List of supported session protocols.
+   pp                          Enable Proxy Protocol.
    ssl                         SSL terminated.
    tr-full                     Fully transparent (inbound and outbound)
    tr-in                       Inbound transparent.
@@ -642,6 +643,12 @@ proto
    separated by semi-colons. For TLS proxy ports the default value is
    all available protocols. For non-TLS proxy ports the default is HTTP
    only.
+
+pp
+   Enables Proxy Protocol on the port.  If Proxy Protocol is enabled on the
+   port, all incoming requests must be prefaced with the PROXY header.  See
+   :ref:`Proxy Protocol <proxy-protocol>` for more details on how to configure
+   this option properly.
 
 tr-full
    Fully transparent. This is a convenience option and is identical to specifying both ``tr-in`` and ``tr-out``.
@@ -1600,26 +1607,30 @@ Proxy User Variables
    is prohibited by RFC 7239. Currently, for the ``host`` parameter to provide the original host from the
    incoming client request, `proxy.config.url_remap.pristine_host_hdr`_ must be enabled.
 
-.. ts:cv:: CONFIG proxy.config.http.proxy_protocol_to_forwarded STRING ```<ip list>```
-   :reloadable:
-   :overridable:
+.. ts:cv:: CONFIG proxy.config.http.proxy_protocol_whitelist STRING ```<ip list>```
 
-   This is no longer a binary enable flag.  It is now a list of IPs via IpMap
-   so it can handle CIDR notatation as well....  Fix this up before you ship
-   it!
+   This defines a whitelist of server IPs that are trusted to provide
+   connections with Proxy Protocol information.  This is a comma delimited list
+   of IP addresses.  Addressed may be listed individually, in a range separated
+   by a dash or by using CIDR notation.
 
-   Enables and disables transforming an incoming Proxy Protocol header to Forwarded: header
+   ======================= ===========================================================
+   Example  Effect
+   ======================= ===========================================================
+   ``10.0.2.123``          A single IP Address.
+   ``10.0.3.1-10.0.3.254`` A range of IP address.
+   ``10.0.4.0/24``         A range of IP address specified by CIDR notation.
+   ======================= ============================================================
 
-   ======== ===================================================================
-   Value    Effect
-   ======== ===================================================================
-   ``0``    Disabled - default value
-   ``1``    Enables transforming Proxy Protocol version 1 to the Forwarded header
-   ======== ===================================================================
-   
+   .. important::
+
+       If Proxy Protocol is enabled on the port, but this directive is not
+       defined any server may initiate a connection with Proxy Protocol
+       information.
+       See :ts:cv:`proxy.config.http.server_ports` for information on how to enable Proxy Protocol on a port.
+
    See :ref:`proxy-protocol` for more discussion on how |TS| tranforms the `Forwarded: header.
-   See :ts:cv:`proxy.config.http.insert_forwarded` for information on configuring the `Forwarded:` header.
-   
+
 .. ts:cv:: CONFIG proxy.config.http.normalize_ae INT 1
    :reloadable:
    :overridable:
