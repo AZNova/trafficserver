@@ -120,7 +120,7 @@ struct NetVCOptions {
   };
 
   /** Local address for the connection.
-   
+
       For outbound connections this must have the same family as the
       remote address (which is not stored in this structure). For
       inbound connections the family of this value overrides @a

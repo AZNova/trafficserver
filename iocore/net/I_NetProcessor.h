@@ -98,7 +98,7 @@ public:
     bool f_inbound_transparent;
 
     /// Proxy Protocol enabled
-    bool netprocessor_acceptoptions_f_proxy_protocol;
+    bool f_proxy_protocol;
 
     /// Default constructor.
     /// Instance is constructed with default values.

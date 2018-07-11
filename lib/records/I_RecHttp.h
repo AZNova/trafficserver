@@ -238,7 +238,6 @@ public:
     TRANSPORT_COMPRESSED,   ///< Compressed HTTP.
     TRANSPORT_BLIND_TUNNEL, ///< Blind tunnel (no processing).
     TRANSPORT_SSL,          ///< SSL connection.
-    TRANSPORT_PROXY_PROTO,  ///< Proxy Protocol
     TRANSPORT_PLUGIN        /// < Protocol plugin connection
   };
 

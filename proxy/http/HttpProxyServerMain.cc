@@ -161,7 +161,7 @@ make_net_accept_options(const HttpProxyPort *port, unsigned nthreads)
     net.f_inbound_transparent = port->m_inbound_transparent_p;
     net.ip_family             = port->m_family;
     net.local_port            = port->m_port;
-    net.netprocessor_acceptoptions_f_proxy_protocol      = port->m_proxy_protocol;
+    net.f_proxy_protocol      = port->m_proxy_protocol;
 
     if (port->m_inbound_ip.isValid()) {
       net.local_ip = port->m_inbound_ip;
@@ -210,13 +210,13 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
   ProtocolProbeSessionAccept *probe = new ProtocolProbeSessionAccept();
   HttpSessionAccept *http           = nullptr; // don't allocate this unless it will be used.
   probe->proxyPort                  = &port;
-  probe->protocolprobesessionaccept_proxy_protocol_ipmap_ref = &HttpConfig::m_master.config_proxy_protocol_ipmap;
+  probe->proxy_protocol_ipmap       = &HttpConfig::m_master.config_proxy_protocol_ipmap;
 
   if (port.m_session_protocol_preference.intersects(HTTP_PROTOCOL_SET)) {
     http = new HttpSessionAccept(accept_opt);
     probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_HTTP, http);
   }
-  
+
   if (port.m_session_protocol_preference.intersects(HTTP2_PROTOCOL_SET)) {
     probe->registerEndpoint(ProtocolProbeSessionAccept::PROTO_HTTP2, new Http2SessionAccept(accept_opt));
   }

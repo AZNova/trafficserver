@@ -58,7 +58,6 @@ size_t SSLConfigParams::session_cache_max_bucket_size       = 100;
 init_ssl_ctx_func SSLConfigParams::init_ssl_ctx_cb          = nullptr;
 load_ssl_file_func SSLConfigParams::load_ssl_file_cb        = nullptr;
 bool SSLConfigParams::sni_map_enable                        = false;
-
 IpMap *SSLConfigParams::proxy_protocol_ipmap                = nullptr;
 
 // TS-3534 Wiretracing for SSL Connections
@@ -360,6 +359,7 @@ SSLConfigParams::initialize()
     ssl_wire_trace_server_name = nullptr;
   }
 
+  // Grab a reference to the Proxy Protocol IpMap whitelist
   proxy_protocol_ipmap = &HttpConfig::m_master.config_proxy_protocol_ipmap;
 
   // Enable client regardless of config file settings as remap file

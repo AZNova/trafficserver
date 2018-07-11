@@ -31,7 +31,6 @@
 #include "I_Net.h"
 #include <records/I_RecHttp.h>
 
-
 namespace detail
 {
 /** Options for @c HttpSessionAccept.

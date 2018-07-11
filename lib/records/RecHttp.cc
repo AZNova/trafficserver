@@ -64,7 +64,6 @@ int TS_ALPN_PROTOCOL_INDEX_HTTP_0_9 = SessionProtocolNameRegistry::INVALID;
 int TS_ALPN_PROTOCOL_INDEX_HTTP_1_0 = SessionProtocolNameRegistry::INVALID;
 int TS_ALPN_PROTOCOL_INDEX_HTTP_1_1 = SessionProtocolNameRegistry::INVALID;
 int TS_ALPN_PROTOCOL_INDEX_HTTP_2_0 = SessionProtocolNameRegistry::INVALID;
-int TS_ALPN_PROTOCOL_INDEX_PROXY_PROTO = SessionProtocolNameRegistry::INVALID;
 
 // Predefined protocol sets for ease of use.
 SessionProtocolSet HTTP_PROTOCOL_SET;
@@ -112,14 +111,9 @@ void
 RecHttpLoadIpMap(const char *value_name, IpMap &ipmap)
 {
   char value[1024];
-//  IpEndpoint laddrep;
-  // raddr;
-//  char err_buff[256];
-//  matcher_line line_info;
   IpAddr laddr;
   IpAddr raddr;
   void *payload = nullptr;
-
 
   if (REC_ERR_OKAY == RecGetRecordString(value_name, value, sizeof(value))) {
     Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap", value_name, value);
@@ -127,69 +121,14 @@ RecHttpLoadIpMap(const char *value_name, IpMap &ipmap)
     int n_addrs = tokens.Initialize(value);
     for (int i = 0; i < n_addrs; ++i) {
       const char *val = tokens[i];
-//      int idx = 0;
 
       Debug("config", "RecHttpLoadIpMap: marking the value [%s] to an IpMap entry", val);
-//      if (0 == ats_ip_range_parse(line_info.line[1][line_info.dest_entry], addr1, addr2)) {
       if (0 == ats_ip_range_parse(val, laddr, raddr)) {
         ipmap.fill(laddr, raddr, payload);
       }
-
-//      if (0 != read_addr((char *)val, strlen(val), &idx, &laddr.sa, err_buff)) {
-//        Debug("config", "RecHttpLoadIpMap: Invalid input configuration for the value [%s] - ignoring", val);
-        // char *error_str = (char *)ats_malloc(256);
-        // snprintf(error_str, 256, "Invalid input configuration (%s) at line offset %d - '%s'", err_buff, i, value);
-        // return error_str;
-//      }
-//      ipmap.mark(&laddrep);
     }
   }
-
-// 127.0.0.1,
-// 192.168.1.1,
-// 10.2.10.0/24,
-// 10.28.56.0,
-// 192.168.2.1-192.168.2.255
-
-//  IpEndpoint key_endpoint;
-//  key_endpoint.assign(ip);
-  IpEndpoint a_10_28_56_0;
-  ats_ip_pton("10.28.56.0", &a_10_28_56_0);
-  if (ipmap.contains(a_10_28_56_0, &payload)) {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap was SUCCESSFUL", value_name, value);
-  }  
-  else {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap FAILED", value_name, value);
-  }
-
-  IpEndpoint a_10_2_10_123;
-  ats_ip_pton("10.2.10.123", &a_10_2_10_123);
-  if (ipmap.contains(a_10_2_10_123, &payload)) {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap was SUCCESSFUL", value_name, value);
-  }  
-  else {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap FAILED", value_name, value);
-  }
-  
-  IpEndpoint a_192_168_2_123;
-  ats_ip_pton("192.168.2.123", &a_192_168_2_123);
-  if (ipmap.contains(a_192_168_2_123, &payload)) {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap was SUCCESSFUL", value_name, value);
-  }  
-  else {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap FAILED", value_name, value);
-  }
-
-  IpEndpoint a_192_168_3_123;
-  ats_ip_pton("192.168.3.123", &a_192_168_3_123);
-  if (ipmap.contains(a_192_168_3_123, &payload)) {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap was SUCCESSFUL", value_name, value);
-  }  
-  else {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap FAILED", value_name, value);
-  }
-  size_t cnt = ipmap.getCount();
-  Debug("config", "RecHttpLoadIpMap: parsed %zu IpMap entries", cnt);
+  Debug("config", "RecHttpLoadIpMap: parsed %zu IpMap entries", ipmap.getCount());
 }
 
 const char *const HttpProxyPort::DEFAULT_VALUE = "8080";
@@ -721,10 +660,7 @@ ts_session_protocol_well_known_name_indices_init()
   HTTP_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_HTTP_1_1);
   HTTP2_PROTOCOL_SET.markIn(TS_ALPN_PROTOCOL_INDEX_HTTP_2_0);
 
-
   DEFAULT_TLS_SESSION_PROTOCOL_SET.markAllIn();
-  // Disable proxy protocol by default in TLS, explicit configuration to enable
-  DEFAULT_TLS_SESSION_PROTOCOL_SET.markOut(TS_ALPN_PROTOCOL_INDEX_PROXY_PROTO);
 
   DEFAULT_NON_TLS_SESSION_PROTOCOL_SET = HTTP_PROTOCOL_SET;
 
