@@ -137,11 +137,6 @@ struct NetVCOptions {
   */
   uint16_t local_port;
 
-  /** Whitelist of trusted IPs to access PROXY Protocol headers from
-  */
-  //IpAddr proxy_protocol_ip;    // TODO: Do I need this here?
-  IpMap *netvc_options_proxy_protocol_ipmap; 
-
   /// How to bind the local address.
   /// @note Default is @c ANY_ADDR.
   addr_bind_style addr_binding;
