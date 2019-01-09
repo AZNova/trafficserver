@@ -31,10 +31,10 @@
 #include "tscore/List.h"
 #include "I_IOBuffer.h"
 #include "I_Socks.h"
-#include "tscore/apidefs.h"
+#include "ts/apidefs.h"
 #include <string_view>
 #include "YamlSNIConfig.h"
-#include "tscore/TextView.h"
+#include "tscpp/util/TextView.h"
 #include "tscore/IpMap.h"
 
 #define CONNECT_SUCCESS 1
