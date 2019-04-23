@@ -1326,6 +1326,7 @@ AM_CONDITIONAL([BUILD_YAML_CPP], [test x"$has_yaml_cpp" = x"no"])
 TS_CHECK_HIREDIS
 
 AM_CONDITIONAL([BUILD_SSL_SESSION_REUSE_PLUGIN], [test ! -z "${LIB_HIREDIS}" -a "x${has_hiredis}" = "x1" ])
+AM_CONDITIONAL([BUILD_SSL_LAZY_LOADER_PLUGIN], [test ! -z "${LIB_HIREDIS}" -a "x${has_hiredis}" = "x1" ])
 
 # Check for backtrace() support
 has_backtrace=0
