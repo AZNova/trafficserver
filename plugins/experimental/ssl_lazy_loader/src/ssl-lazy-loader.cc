@@ -64,9 +64,10 @@ class NetVCDeque
 {
 public:
   std::deque<TSVConn> netvcDeque;
-  TSMutex mutex;
+  TSMutex mutex = TSMutexCreate();
 
-  NetVCDeque() { mutex = TSMutexCreate(); }
+  NetVCDeque() {}
+  //  : mutex(TSMutexCreate()) { }
 };
 
 // TSCont expiry_cont;
@@ -187,7 +188,7 @@ std::string dom_c_name = "ssl_domain_map";
 
 /* Structure to be associated to cert load requests */
 typedef struct {
-  int freq_multiplier;
+  // int freq_multiplier;
   int thread_initialized;
   // RedisConnector *sd_cert_map;
   // RedisConnector *sd_domain_map;
@@ -263,38 +264,43 @@ shutdown_vcs(SslEntry *entry, SSL_CTX *ctx)
   return TS_SUCCESS;
 }
 
-int
-Loader_Cont(SslEntry *entry)
+// Loader_Cont(TSCont contp, SslEntry *entry)
+static int
+Loader_Cont(TSCont contp, TSEvent event, void *edata)
 {
+  // SslEntry *entry = reinterpret_cast<SslEntry *>(edata);
+  // SslEntry *entry = reinterpret_cast<SslEntry *>(TSContDataGet(contp));
+  const char *servername = reinterpret_cast<const char *>(TSContDataGet(contp));
+
   TSDebug("redis-loader-thread", "Resolving the SSL ctx for %s in the Loader Thread", entry->request_domain.c_str());
 
   // Make sure we have some sort of common name to search for
   redisReply *r_reply = NULL;
-  if (entry->redis_CN.length() > 0) {
-    TSDebug("redis-loader-thread",
-            "redis_CN is already set to %s "
-            "in the Loader_Cont",
-            entry->request_domain.c_str());
-  } else if (entry->request_domain.length() > 0) {
-    TSDebug("redis-loader-thread",
-            "Setting redis_CN to %s using "
-            "the the (request_domain.length > 0) in the Loader_Cont",
-            entry->request_domain.c_str());
-    entry->redis_CN = entry->request_domain;
-  } else {
-    TSDebug("redis-loader-thread", "Both redis_CN and request_domain"
-                                   "are zero length. This SHOULD NEVER HAPPEN!!!");
-    return TS_ERROR;
-  }
-
+  /*   if (entry->redis_CN.length() > 0) {
+      TSDebug("redis-loader-thread",
+              "redis_CN is already set to %s "
+              "in the Loader_Cont",
+              entry->request_domain.c_str());
+    } else if (entry->request_domain.length() > 0) {
+      TSDebug("redis-loader-thread",
+              "Setting redis_CN to %s using "
+              "the the (request_domain.length > 0) in the Loader_Cont",
+              entry->request_domain.c_str());
+      entry->redis_CN = entry->request_domain;
+    } else {
+      TSDebug("redis-loader-thread", "Both redis_CN and request_domain"
+                                     "are zero length. This SHOULD NEVER HAPPEN!!!");
+      return TS_ERROR;
+    }
+   */
   // lets check to make sure this domain
   // exists in redis to make sure we should even try to load this guy's cert
   //
   // Let's GET the value (Common Name) for this domain (which also
   // validates the domain)
-  std::string s_servername = entry->request_domain;
-  TSDebug("redis-loader-thread", "before domain_map->get, thread_loader_data.nd_domain_map =  %p ",
-          thread_loader_data.nd_domain_map);
+  // std::string s_servername = entry->request_domain;
+  std::string s_servername(servername) TSDebug(
+    "redis-loader-thread", "before domain_map->get, thread_loader_data.nd_domain_map =  %p ", thread_loader_data.nd_domain_map);
   if (thread_loader_data.nd_domain_map->get(r_reply, dom_c_name, entry->request_domain.c_str()) != REDIS_REPLY_ERROR) {
     TSDebug("redis-loader-thread", "after domain_map->get, thread_loader_data.nd_domain_map =  %p ",
             thread_loader_data.nd_domain_map);
@@ -515,37 +521,41 @@ CB_servername(TSCont cont, TSEvent /*event*/, void *edata)
   SSL *ssl               = reinterpret_cast<SSL *>(sslobj);
   const char *servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 
-  TSDebug(PN, "SNI callback servername %s ssl_vc %p", servername, ssl_vc);
-  if (servername != NULL) {
-    dataset_check();
-
-    SslEntry *entry     = NULL;
-    entry               = new SslEntry();
-    entry->certFileName = "";
-    entry->keyFileName  = "";
-    entry->ctx          = NULL;
-    entry->op           = SSL_HOOK_OP_DEFAULT;
-    entry->set_load_time(time(0));
-    entry->set_access_time(time(0));
-    entry->request_domain = servername;
-    entry->mutex          = TSMutexCreate();
-    TSDebug("ssl-lazy-loader-backlog",
-            "PUSHing the vc %p for %p for %s onto the "
-            "waitingVConns while creating the new entry in CB_servername",
-            ssl_vc, entry, servername);
-    entry->waitingVConns.push_back(ssl_vc);
-    TSDebug("ssl-lazy-loader-backlog",
-            "Size of the waitingVConns deque %lu at "
-            "creating the new entry for the %s cert "
-            "after pushing into the que",
-            entry->waitingVConns.size(), servername);
-
-    Loader_Cont(entry);
-    return TS_SUCCESS; // don't re-enable yet
+  if (servername == NULL) {
+    TSDebug(PN, "SNI callback servername %s ssl_vc %p", servername, ssl_vc);
+    return TS_ERROR;
   }
-  // All done, reactivate things
-  TSVConnReenable(ssl_vc);
-  return TS_SUCCESS;
+  TSDebug(PN, "SNI callback servername %s ssl_vc %p", servername, ssl_vc);
+  dataset_check();
+
+  SslEntry *entry     = NULL;
+  entry               = new SslEntry();
+  entry->certFileName = "";
+  entry->keyFileName  = "";
+  entry->ctx          = NULL;
+  entry->op           = SSL_HOOK_OP_DEFAULT;
+  entry->set_load_time(time(0));
+  entry->set_access_time(time(0));
+  entry->request_domain = servername;
+  entry->mutex          = TSMutexCreate();
+  TSDebug("ssl-lazy-loader-backlog",
+          "PUSHing the vc %p for %p for %s onto the "
+          "waitingVConns while creating the new entry in CB_servername",
+          ssl_vc, entry, servername);
+  entry->waitingVConns.push_back(ssl_vc);
+  TSDebug("ssl-lazy-loader-backlog",
+          "Size of the waitingVConns deque %lu at "
+          "creating the new entry for the %s cert "
+          "after pushing into the que",
+          entry->waitingVConns.size(), servername);
+
+  TSDebug("ssl-lazy-loader-backlog", "schedule thread to fetch the cert for %s", servername);
+  TSCont loader_cont = TSContCreate(Loader_Cont, TSMutexCreate());
+  TSContDataSet(loader_cont, (void *)servername);
+  TSContScheduleOnPool(loader_cont, 0, TS_THREAD_POOL_TASK);
+  // Loader_Cont(entry);
+
+  return TS_SUCCESS; // don't re-enable yet cuz wse don't have the cert
 }
 
 } // namespace
@@ -587,19 +597,10 @@ TSPluginInit(int argc, const char *argv[])
     TSDebug(PN, "No config path set in arguments, using default: %s", DEFAULT_REDIS_CONFIG_PATH);
   }
 
-  // #if (TS_VERSION_NUMBER >= 7000000)
   if (TS_SUCCESS != TSPluginRegister(&info)) { // This is for 6.x
     TSError(PCP "registration failed.");
-    //  }
-    //#else
-    //  if (TS_SUCCESS != TSPluginRegister(TS_SDK_VERSION_3_0, &info)) { // 5.3
-    //    TSError(PCP "registration failed.");
-    //  }
-    //#endif
-  } else if (TSTrafficServerVersionGetMajor() < 5) {
-    TSError(PCP "requires Traffic Server 5.0 or later.");
   } else if (0 == (cb_lc = TSContCreate(&CB_Life_Cycle, TSMutexCreate()))) {
-    TSError(PCP "Failed to lifecycle callback.");
+    TSError(PCP "Failed to create lifecycle callback.");
   } else if (0 == (cb_sni = TSContCreate(&CB_servername, TSMutexCreate()))) {
     TSError(PCP "Failed to create SNI callback.");
   } else {

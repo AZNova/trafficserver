@@ -91,9 +91,10 @@ class RequestDeque
 {
 public:
   std::deque<SslEntry *> requestDeque;
-  TSMutex mutex;
+  TSMutex mutex = TSMutexCreate();
+  ;
 
-  RequestDeque() { mutex = TSMutexCreate(); }
+  RequestDeque() {}
 };
 
 extern RequestDeque Requests;

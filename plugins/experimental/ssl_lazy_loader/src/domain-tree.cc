@@ -51,11 +51,12 @@ DomainNameTree::DomainNameNode::compare(std::string key, int &relative)
 bool
 DomainNameTree::DomainNameNode::prunedCompare(std::string key, int &relative, bool is_wild)
 {
+  size_t loc;
   if (key == this->key) {
     relative = 0;
     return true;
   } else {
-    size_t loc = key.find(this->key);
+    loc = key.find(this->key);
     if (loc != std::string::npos) {
       if ((key.length() - this->key.length()) == loc) {
         // And node key is at the end of search key
@@ -64,7 +65,7 @@ DomainNameTree::DomainNameNode::prunedCompare(std::string key, int &relative, bo
       }
     }
     if (this->is_wild) {
-      size_t loc = key.find(this->key);
+      loc = key.find(this->key);
 
       if (this->key == "") { // Match all
         relative = -1;
@@ -83,7 +84,7 @@ DomainNameTree::DomainNameNode::prunedCompare(std::string key, int &relative, bo
         relative = 1;
         return true;
       } else {
-        size_t loc = this->key.find(key);
+        loc = this->key.find(key);
 
         if (loc != std::string::npos) {
           if ((this->key.length() - key.length()) == loc) {

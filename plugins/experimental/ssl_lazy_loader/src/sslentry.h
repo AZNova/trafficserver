@@ -46,7 +46,7 @@ typedef enum {
 class SslEntry
 {
 public:
-  SslEntry() : ctx(NULL), op(SSL_HOOK_OP_DEFAULT) { this->mutex = TSMutexCreate(); }
+  SslEntry() : ctx(NULL), op(SSL_HOOK_OP_DEFAULT), mutex(TSMutexCreate()) {}
 
   ~SslEntry() {}
 
@@ -57,10 +57,10 @@ public:
   std::string certFileName;
   std::string keyFileName;
   std::string request_domain;
-  TSMutex mutex;
+  TSMutex mutex = TSMutexCreate();
   std::deque<TSVConn> waitingVConns;
-  time_t load_time;
-  time_t access_time;
+  time_t load_time   = 0;
+  time_t access_time = 0;
   // Common Name fetched from redis
   std::string redis_CN;
 

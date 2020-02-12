@@ -68,7 +68,7 @@ public:
     std::deque<DomainNameNode *> children;
     DomainNameNode *parent;
     bool is_wild;
-    time_t load_time;
+    time_t load_time = 0;
   };
 
   DomainNameTree()
